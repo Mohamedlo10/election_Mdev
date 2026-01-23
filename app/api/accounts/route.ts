@@ -87,7 +87,7 @@ export async function GET() {
     const accountsWithEmail = accounts?.map((account) => ({
       ...account,
       email: emailMap[account.user_id] || 'N/A',
-      instance_name: (account.election_instances as { name: string } | null)?.name || null,
+      instance_name: (account.election_instances as unknown as { name: string } | null)?.name || null,
     })) || [];
 
     return NextResponse.json({ accounts: accountsWithEmail });
