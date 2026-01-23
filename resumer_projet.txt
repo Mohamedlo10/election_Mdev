@@ -1,0 +1,34 @@
+En faite je dois cree une plateform d'election;
+
+il y a des candidats par categories donc les categories sont a definir
+par l'admin.
+un votant peut faire un vote par categories.
+
+il ya un super admin qui cree une instance d'election avec le logo de l'instance d'election sa ses couleurs
+directement predefini par les couleurs du logo mais modifiable et son nom.
+
+pour les votants il y a un import possible par fichier excel avec deux champs le prenom_nom ou full_name et email
+
+maintenant pour creer un compte il faut mettre son adresse email si le user a son email sur la liste des votants on lui envoie un email par nodemailer
+contenant son code a 6 chiffre qui servira de mot de passe.
+
+pour faire simple le workflow est :
+potentiel voteur tape son email pour s'inscrire si le email est sur la table votants on fait un supabase create user avec le code a 6 chiffre generer mis comme mot de passe dans la creation et en cas de succes de creation on envoie se mot de passe de 6 chiffre par email.
+apres cela le user aura acces pour voteur
+
+possibilite d'ajouter des candidats(full_name, description, fichier programme, logo) dans des categories par l'admin, il y a aussi un autre droit pour juste suivre la tendance des votes sur le dashboard pour celui la il ya un role specifique 
+
+il y aura le auth_uid du user dans la partie authentification de supabase qui sera cle etrangere sur la table votants.
+donc on aura juste une colonne boolean qui montre si le votant c'est deja inscrit ou non avec le authuid comme cle etrangere rempli ainsi que la date de creation de compte d'authentification
+
+il y aura aussi un bouton pour demarrer les elections et aussi les arreter faisable que par l'admin ou le super-admin
+le super admin pourrait voir tous ces instances d'election et les gerer.Avec la possibilite de pouvoir terminer une instance d'election qui nous permettra de faire un backup et de supprimer tous les comptes auth presents 
+
+j'utilise next + supabase; met des composants simple mais jolies avec un design tres slim et smooth,utilise un useAuth pour gerer le stockage du user en cache et la recuperation rapide dans le storage en evitant le maximum d'appel serveur.
+cree une logique separer pour chaque paritie  service separer
+les composants doivent etre modulaire : Page principale import les composant de la page contenu dans components/dossier_de_cette_partie, evite les map de formatage utilise directement les donnees recu de la bd.
+voici le logo de l'entreprise hote du projet logoMOUHADEV.png
+
+
+les couleurs principales de la platform seront blanc, gris ,vert,jaune,rouge et noir avec une forte adaptation au format mobile
+l'affichage de la plateform sera conditionner avec l'instance d'election ou on se trouve a part le blanc qui sera toujours presents certains details suptile sera gerer avec les couleurs de l'instance definie lors de la creation 
