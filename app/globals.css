@@ -3,6 +3,14 @@
 :root {
   --background: #ffffff;
   --foreground: #171717;
+
+  /* Theme dynamique - valeurs par défaut */
+  --theme-primary: #22c55e;
+  --theme-primary-light: rgba(34, 197, 94, 0.1);
+  --theme-secondary: #1f2937;
+  --theme-secondary-light: rgba(31, 41, 55, 0.1);
+  --theme-accent: #eab308;
+  --theme-accent-light: rgba(234, 179, 8, 0.1);
 }
 
 @theme inline {
@@ -28,3 +36,38 @@ Input,input, textarea,select,Select,p,div,span{
   font-family: inherit;
   color: black;
 }
+
+/* ============================================
+   CLASSES UTILITAIRES THEME DYNAMIQUE
+   ============================================ */
+
+/* Backgrounds */
+.bg-theme-primary { background-color: var(--theme-primary); }
+.bg-theme-primary-light { background-color: var(--theme-primary-light); }
+.bg-theme-secondary { background-color: var(--theme-secondary); }
+.bg-theme-secondary-light { background-color: var(--theme-secondary-light); }
+.bg-theme-accent { background-color: var(--theme-accent); }
+.bg-theme-accent-light { background-color: var(--theme-accent-light); }
+
+/* Text colors */
+.text-theme-primary { color: var(--theme-primary); }
+.text-theme-secondary { color: var(--theme-secondary); }
+.text-theme-accent { color: var(--theme-accent); }
+
+/* Borders */
+.border-theme-primary { border-color: var(--theme-primary); }
+.border-theme-secondary { border-color: var(--theme-secondary); }
+.border-theme-accent { border-color: var(--theme-accent); }
+
+/* Hover states */
+.hover\:bg-theme-primary:hover { background-color: var(--theme-primary); }
+.hover\:bg-theme-primary-light:hover { background-color: var(--theme-primary-light); }
+.hover\:text-theme-primary:hover { color: var(--theme-primary); }
+.hover\:border-theme-primary:hover { border-color: var(--theme-primary); }
+
+/* Focus states */
+.focus\:ring-theme-primary:focus {
+  --tw-ring-color: var(--theme-primary);
+  box-shadow: 0 0 0 2px var(--theme-primary-light);
+}
+.focus\:border-theme-primary:focus { border-color: var(--theme-primary); }

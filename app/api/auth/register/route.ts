@@ -87,6 +87,15 @@ export async function POST(request: Request) {
 
     if (authError) {
       console.error('Auth error:', authError);
+      
+      // Gérer le cas où l'email existe déjà dans Supabase Auth
+      if (authError.code === 'email_exists') {
+        return NextResponse.json(
+          { error: 'Un compte avec cet email existe déjà. Veuillez utiliser la page de connexion.' },
+          { status: 400 }
+        );
+      }
+      
       return NextResponse.json(
         { error: 'Erreur lors de la création du compte' },
         { status: 500 }

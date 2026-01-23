@@ -107,12 +107,18 @@ export function parseExcelFile(file: File): Promise<VoterImport[]> {
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet) as Record<string, unknown>[];
-
-        const voters: VoterImport[] = jsonData.map((row) => ({
-          full_name: String(row['full_name'] || row['nom'] || row['name'] || row['prenom_nom'] || '').trim(),
-          email: String(row['email'] || row['Email'] || row['EMAIL'] || '').trim().toLowerCase(),
-        })).filter((v) => v.full_name && v.email);
+        
+        // Convertir en tableau de tableaux pour prendre les colonnes par position
+        const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][];
+        
+        // Ignorer la première ligne (en-têtes) et mapper les colonnes par position
+        const voters: VoterImport[] = jsonData
+          .slice(1) // Ignorer les en-têtes
+          .map((row) => ({
+            full_name: String(row[0] || '').trim(),
+            email: String(row[1] || '').trim().toLowerCase(),
+          }))
+          .filter((v) => v.full_name && v.email);
 
         resolve(voters);
       } catch {
