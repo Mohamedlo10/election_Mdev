@@ -380,7 +380,7 @@ export default function InstancesPage() {
                 type="color"
                 value={formData.primary_color}
                 onChange={(e) => setFormData({ ...formData, primary_color: e.target.value })}
-                className="w-full h-10 rounded-lg border border-gray-300 cursor-pointer"
+                className="w-full h-10 rounded-md border border-gray-300 cursor-pointer"
               />
             </div>
             <div>
@@ -391,7 +391,7 @@ export default function InstancesPage() {
                 type="color"
                 value={formData.secondary_color}
                 onChange={(e) => setFormData({ ...formData, secondary_color: e.target.value })}
-                className="w-full h-10 rounded-lg border border-gray-300 cursor-pointer"
+                className="w-full h-10 rounded-md border border-gray-300 cursor-pointer"
               />
             </div>
             <div>
@@ -402,7 +402,7 @@ export default function InstancesPage() {
                 type="color"
                 value={formData.accent_color}
                 onChange={(e) => setFormData({ ...formData, accent_color: e.target.value })}
-                className="w-full h-10 rounded-lg border border-gray-300 cursor-pointer"
+                className="w-full h-10 rounded-md border border-gray-300 cursor-pointer"
               />
             </div>
           </div>

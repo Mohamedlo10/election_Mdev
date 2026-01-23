@@ -70,55 +70,44 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const supabase = createClient();
 
-  const fetchUserRole = useCallback(async (userId: string, email: string): Promise<AuthUser | null> => {
-    console.log('[Auth] Fetching role for user:', userId, email);
+  const fetchUserRole = useCallback(async (): Promise<AuthUser | null> => {
+    console.log('[Auth] Fetching role via API...');
 
-    // Vérifier d'abord dans users_roles
-    const { data: roleData, error: roleError } = await supabase
-      .from('users_roles')
-      .select('role, instance_id')
-      .eq('user_id', userId)
-      .single();
+    try {
+      // Utiliser l'API route pour contourner les problèmes RLS
+      const response = await fetch('/api/auth/me');
+      const data = await response.json();
 
-    console.log('[Auth] users_roles result:', { roleData, roleError });
+      console.log('[Auth] API /me result:', { status: response.status, data });
 
-    if (roleData) {
-      return {
-        id: userId,
-        email,
-        role: roleData.role as UserRole,
-        instance_id: roleData.instance_id,
-      };
+      if (response.ok && data.role) {
+        return {
+          id: data.id,
+          email: data.email,
+          role: data.role as UserRole,
+          instance_id: data.instance_id,
+          voter: data.voter as Voter | undefined,
+        };
+      }
+
+      if (data.noRole) {
+        console.log('[Auth] No role found for user');
+        return null;
+      }
+
+      console.log('[Auth] API error:', data.error);
+      return null;
+    } catch (error) {
+      console.error('[Auth] Fetch error:', error);
+      return null;
     }
-
-    // Sinon vérifier si c'est un votant
-    const { data: voterData, error: voterError } = await supabase
-      .from('voters')
-      .select('*')
-      .eq('auth_uid', userId)
-      .single();
-
-    console.log('[Auth] voters result:', { voterData, voterError });
-
-    if (voterData) {
-      return {
-        id: userId,
-        email,
-        role: 'voter' as UserRole,
-        instance_id: voterData.instance_id,
-        voter: voterData as Voter,
-      };
-    }
-
-    console.log('[Auth] No role found for user');
-    return null;
-  }, [supabase]);
+  }, []);
 
   const refreshUser = useCallback(async () => {
     const { data: { user: currentUser } } = await supabase.auth.getUser();
 
     if (currentUser) {
-      const userRole = await fetchUserRole(currentUser.id, currentUser.email || '');
+      const userRole = await fetchUserRole();
       if (userRole) {
         setAuthUser(userRole);
         setHasNoRole(false);
@@ -145,12 +134,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(currentSession?.user ?? null);
 
       if (currentSession?.user) {
-        // Si pas de cache ou cache expiré, fetch depuis la BD
+        // Si pas de cache ou cache expiré, fetch depuis l'API
         if (!cached || Date.now() - cached.timestamp > CACHE_DURATION) {
-          const userRole = await fetchUserRole(
-            currentSession.user.id,
-            currentSession.user.email || ''
-          );
+          const userRole = await fetchUserRole();
           if (userRole) {
             setAuthUser(userRole);
             setHasNoRole(false);
@@ -182,10 +168,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(newSession?.user ?? null);
 
         if (event === 'SIGNED_IN' && newSession?.user) {
-          const userRole = await fetchUserRole(
-            newSession.user.id,
-            newSession.user.email || ''
-          );
+          const userRole = await fetchUserRole();
           if (userRole) {
             setAuthUser(userRole);
             setHasNoRole(false);

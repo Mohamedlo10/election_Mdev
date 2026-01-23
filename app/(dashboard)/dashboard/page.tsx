@@ -13,6 +13,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
+import Link from 'next/link';
 
 interface DashboardStats {
   totalInstances: number;
@@ -222,7 +223,7 @@ export default function DashboardPage() {
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredActions.map((action) => (
-              <a
+              <Link
                 key={action.href}
                 href={action.href}
                 className="flex items-start gap-4 p-4 rounded-lg border border-gray-100 hover:border-green-200 hover:bg-green-50 transition-all"
@@ -234,7 +235,7 @@ export default function DashboardPage() {
                   <h3 className="font-medium text-gray-900">{action.title}</h3>
                   <p className="text-sm text-gray-500">{action.description}</p>
                 </div>
-              </a>
+              </Link>
             ))}
           </div>
         </CardContent>

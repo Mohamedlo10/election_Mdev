@@ -48,7 +48,8 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             variant="outline"
             onClick={async () => {
               await signOut();
-              router.push('/login');
+              // Force page refresh pour nettoyer le cache
+              window.location.href = '/login';
             }}
             className="w-full"
           >
