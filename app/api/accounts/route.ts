@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createClient as createServerClient } from '@/lib/supabase/server';
+import { sendAccountInviteEmail } from '@/lib/services/email.service';
 
 // Client admin pour contourner RLS
 function createAdminClient() {
@@ -136,6 +137,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Acces refuse' }, { status: 403 });
     }
 
+    // Recuperer le nom de l'instance si specifiee (pour l'email)
+    let instanceName: string | undefined;
+    if (instance_id) {
+      const { data: instanceData } = await adminClient
+        .from('election_instances')
+        .select('name')
+        .eq('id', instance_id)
+        .single();
+      instanceName = instanceData?.name;
+    }
+
     // Si une instance est specifiee et que le role est admin, verifier qu'il n'y a pas deja un admin
     if (instance_id && role === 'admin') {
       const { data: existingAdmin } = await adminClient
@@ -175,8 +187,20 @@ export async function POST(request: Request) {
 
       existingUser = newUser.user;
 
-      // TODO: Envoyer email avec mot de passe
-      console.log(`[Accounts] Nouveau compte cree: ${email} - Password: ${password}`);
+      // Envoyer email avec mot de passe
+      const emailResult = await sendAccountInviteEmail(
+        email.toLowerCase(),
+        password,
+        role as 'admin' | 'observer',
+        instanceName
+      );
+
+      if (!emailResult.success) {
+        console.error('Failed to send invite email:', emailResult.error);
+        // On continue quand meme - le compte est cree
+      }
+
+      console.log(`[Accounts] Nouveau compte cree: ${email} - Email envoye: ${emailResult.success}`);
     }
 
     // Verifier si l'utilisateur a deja un role admin (avec ou sans instance)

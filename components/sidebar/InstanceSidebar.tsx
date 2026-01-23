@@ -9,6 +9,7 @@ import {
   BarChart3,
   Settings,
   UserCheck,
+  Eye,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useInstance } from '@/contexts/InstanceContext';
@@ -44,6 +45,12 @@ const navItems: NavItem[] = [
     label: 'Votants',
     href: '/voters',
     icon: Users,
+    roles: ['super_admin', 'admin'],
+  },
+  {
+    label: 'Observateurs',
+    href: '/observers',
+    icon: Eye,
     roles: ['super_admin', 'admin'],
   },
   {

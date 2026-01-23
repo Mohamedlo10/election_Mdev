@@ -98,3 +98,103 @@ export async function sendCodeEmail(
     html,
   });
 }
+
+// Template email pour invitation admin/observateur
+export function getAccountInviteTemplate(
+  email: string,
+  password: string,
+  role: 'admin' | 'observer',
+  instanceName?: string
+): string {
+  const roleLabel = role === 'admin' ? 'Administrateur' : 'Observateur';
+  const roleColor = role === 'admin' ? '#3b82f6' : '#eab308';
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Votre compte MDev_Election</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1f2937; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">MDev_Election</h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Système de Gestion d'Élections</p>
+      </div>
+
+      <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+        <div style="background: ${roleColor}15; border-left: 4px solid ${roleColor}; padding: 15px; margin-bottom: 20px; border-radius: 0 8px 8px 0;">
+          <p style="margin: 0; color: ${roleColor}; font-weight: bold; font-size: 16px;">
+            Compte ${roleLabel}
+          </p>
+          ${instanceName ? `<p style="margin: 5px 0 0 0; color: #6b7280; font-size: 14px;">Instance: ${instanceName}</p>` : ''}
+        </div>
+
+        <h2 style="color: #1f2937; margin-top: 0;">Bienvenue !</h2>
+
+        <p>Votre compte ${roleLabel.toLowerCase()} a été créé. Voici vos identifiants de connexion :</p>
+
+        <div style="background: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <tr>
+              <td style="padding: 10px 0; color: #6b7280; font-size: 14px;">Email</td>
+              <td style="padding: 10px 0; font-weight: bold; color: #1f2937;">${email}</td>
+            </tr>
+            <tr>
+              <td style="padding: 10px 0; border-top: 1px solid #e5e7eb; color: #6b7280; font-size: 14px;">Mot de passe</td>
+              <td style="padding: 10px 0; border-top: 1px solid #e5e7eb; font-weight: bold; color: #22c55e; font-size: 18px; letter-spacing: 2px;">${password}</td>
+            </tr>
+          </table>
+        </div>
+
+        <div style="background: #fef3c7; border-left: 4px solid #eab308; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+          <p style="margin: 0; color: #92400e; font-size: 14px;">
+            <strong>Important :</strong> Conservez ce mot de passe en lieu sûr. Vous pourrez le modifier après votre première connexion.
+          </p>
+        </div>
+
+        ${role === 'admin' && !instanceName ? `
+        <div style="background: #dbeafe; border-left: 4px solid #3b82f6; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+          <p style="margin: 0; color: #1e40af; font-size: 14px;">
+            <strong>Prochaine étape :</strong> Connectez-vous pour créer votre instance d'élection.
+          </p>
+        </div>
+        ` : ''}
+
+        <div style="text-align: center; margin-top: 30px;">
+          <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}"
+             style="display: inline-block; background: #22c55e; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+            Se connecter
+          </a>
+        </div>
+
+        <p style="color: #6b7280; font-size: 14px; margin-top: 30px;">
+          Si vous n'êtes pas à l'origine de cette demande, veuillez ignorer cet email.
+        </p>
+      </div>
+
+      <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
+        <p>© ${new Date().getFullYear()} MDev_Election - Tous droits réservés</p>
+      </div>
+    </body>
+    </html>
+  `;
+}
+
+// Envoyer invitation admin/observateur
+export async function sendAccountInviteEmail(
+  to: string,
+  password: string,
+  role: 'admin' | 'observer',
+  instanceName?: string
+): Promise<{ success: boolean; error?: string }> {
+  const roleLabel = role === 'admin' ? 'Administrateur' : 'Observateur';
+  const html = getAccountInviteTemplate(to, password, role, instanceName);
+
+  return sendEmail({
+    to,
+    subject: `Votre compte ${roleLabel} - MDev_Election${instanceName ? ` - ${instanceName}` : ''}`,
+    html,
+  });
+}
