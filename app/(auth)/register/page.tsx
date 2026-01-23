@@ -104,7 +104,7 @@ export default function RegisterPage() {
               placeholder="votremail@exemple.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="pl-10"
+              className="pl-10 text-black"
               required
             />
           </div>
