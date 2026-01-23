@@ -105,8 +105,9 @@ export default function AccountsPage() {
       setError('L\'email est requis');
       return;
     }
-    if (!formData.instance_id) {
-      setError('L\'instance est requise');
+    // L'instance n'est obligatoire que pour les observateurs
+    if (formData.role === 'observer' && !formData.instance_id) {
+      setError('L\'instance est requise pour un observateur');
       return;
     }
 
@@ -141,6 +142,12 @@ export default function AccountsPage() {
   async function handleUpdate() {
     if (!selectedAccount) return;
 
+    // L'instance n'est obligatoire que pour les observateurs
+    if (formData.role === 'observer' && !formData.instance_id) {
+      setError('L\'instance est requise pour un observateur');
+      return;
+    }
+
     setSubmitting(true);
     setError('');
 
@@ -150,7 +157,7 @@ export default function AccountsPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           role: formData.role,
-          instance_id: formData.instance_id,
+          instance_id: formData.instance_id || null,
         }),
       });
 
@@ -231,10 +238,21 @@ export default function AccountsPage() {
     (a) => a.role !== 'super_admin' && a.role !== 'voter'
   );
 
-  const instanceOptions = instances.map((i) => ({
+  // Options d'instance - pour admin on ajoute "Aucune" en premier
+  const instanceOptionsForAdmin = [
+    { value: '', label: 'Aucune (pourra creer sa propre instance)' },
+    ...instances.map((i) => ({ value: i.id, label: i.name })),
+  ];
+
+  const instanceOptionsForObserver = instances.map((i) => ({
     value: i.id,
     label: i.name,
   }));
+
+  // Choisir les options selon le role selectionne
+  const currentInstanceOptions = formData.role === 'admin'
+    ? instanceOptionsForAdmin
+    : instanceOptionsForObserver;
 
   return (
     <div className="space-y-6">
@@ -358,7 +376,13 @@ export default function AccountsPage() {
                       <td className="py-3 px-4">
                         <div className="flex items-center gap-2 text-gray-600">
                           <Building2 className="w-4 h-4" />
-                          <span>{account.instance_name || 'Aucune'}</span>
+                          {account.instance_name ? (
+                            <span>{account.instance_name}</span>
+                          ) : account.role === 'admin' ? (
+                            <span className="text-blue-600 text-sm">Peut creer une instance</span>
+                          ) : (
+                            <span className="text-gray-400">Aucune</span>
+                          )}
                         </div>
                       </td>
                       <td className="py-3 px-4 text-sm text-gray-500">
@@ -408,16 +432,28 @@ export default function AccountsPage() {
             label="Role"
             options={roleOptions}
             value={formData.role}
-            onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
+            onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole, instance_id: '' })}
           />
 
-          <Select
-            label="Instance"
-            options={instanceOptions}
-            value={formData.instance_id}
-            onChange={(e) => setFormData({ ...formData, instance_id: e.target.value })}
-            placeholder="Selectionner une instance"
-          />
+          <div>
+            <Select
+              label={formData.role === 'admin' ? 'Instance (optionnel)' : 'Instance'}
+              options={currentInstanceOptions}
+              value={formData.instance_id}
+              onChange={(e) => setFormData({ ...formData, instance_id: e.target.value })}
+              placeholder="Selectionner une instance"
+            />
+            {formData.role === 'admin' && (
+              <p className="text-xs text-blue-600 mt-1">
+                Un admin sans instance pourra creer sa propre instance. Un seul admin par instance est autorise.
+              </p>
+            )}
+            {formData.role === 'observer' && (
+              <p className="text-xs text-gray-500 mt-1">
+                Un observateur doit etre affecte a une instance. Plusieurs observateurs par instance sont autorises.
+              </p>
+            )}
+          </div>
 
           <p className="text-sm text-gray-500">
             Un email d&apos;invitation sera envoye a l&apos;utilisateur avec ses identifiants de connexion.
@@ -450,16 +486,28 @@ export default function AccountsPage() {
             label="Role"
             options={roleOptions}
             value={formData.role}
-            onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole })}
+            onChange={(e) => setFormData({ ...formData, role: e.target.value as UserRole, instance_id: '' })}
           />
 
-          <Select
-            label="Instance"
-            options={instanceOptions}
-            value={formData.instance_id}
-            onChange={(e) => setFormData({ ...formData, instance_id: e.target.value })}
-            placeholder="Selectionner une instance"
-          />
+          <div>
+            <Select
+              label={formData.role === 'admin' ? 'Instance (optionnel)' : 'Instance'}
+              options={currentInstanceOptions}
+              value={formData.instance_id}
+              onChange={(e) => setFormData({ ...formData, instance_id: e.target.value })}
+              placeholder="Selectionner une instance"
+            />
+            {formData.role === 'admin' && (
+              <p className="text-xs text-blue-600 mt-1">
+                Un admin sans instance pourra creer sa propre instance. Un seul admin par instance est autorise.
+              </p>
+            )}
+            {formData.role === 'observer' && (
+              <p className="text-xs text-gray-500 mt-1">
+                Un observateur doit etre affecte a une instance.
+              </p>
+            )}
+          </div>
 
           <div className="flex justify-end gap-3 pt-4">
             <Button variant="outline" onClick={() => setShowEditModal(false)}>

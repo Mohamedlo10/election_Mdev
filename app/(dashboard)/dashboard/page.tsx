@@ -22,8 +22,11 @@ export default function DashboardPage() {
     } else if (authUser.instance_id) {
       // admin, observer, voter -> vers leur instance
       router.push(`/instance/${authUser.instance_id}`);
+    } else if (authUser.role === 'admin') {
+      // Admin sans instance -> page de creation d'instance
+      router.push('/admin-setup');
     } else {
-      // Pas d'instance assignee, retour a la page d'accueil
+      // Observer ou voter sans instance -> retour a la page d'accueil
       router.push('/');
     }
   }, [authUser, loading, router]);

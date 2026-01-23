@@ -22,7 +22,7 @@ function InstanceLayoutContent({ children }: { children: ReactNode }) {
       if (authUser.role === 'super_admin') return;
 
       // Les autres roles doivent avoir une assignation a cette instance
-      const hasAccess = authUser.instanceId === instanceId;
+      const hasAccess = authUser.instance_id === instanceId;
       if (!hasAccess) {
         router.push('/');
       }

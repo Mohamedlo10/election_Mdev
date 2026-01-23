@@ -101,12 +101,18 @@ export async function POST(request: Request) {
   try {
     const { email, role, instance_id } = await request.json();
 
-    if (!email || !role || !instance_id) {
-      return NextResponse.json({ error: 'Donnees manquantes' }, { status: 400 });
+    // Email et role sont toujours requis
+    if (!email || !role) {
+      return NextResponse.json({ error: 'Email et role sont requis' }, { status: 400 });
     }
 
     if (!['admin', 'observer'].includes(role)) {
       return NextResponse.json({ error: 'Role invalide' }, { status: 400 });
+    }
+
+    // Pour les observateurs, l'instance est obligatoire
+    if (role === 'observer' && !instance_id) {
+      return NextResponse.json({ error: 'L\'instance est requise pour un observateur' }, { status: 400 });
     }
 
     // Verifier l'authentification
@@ -128,6 +134,22 @@ export async function POST(request: Request) {
 
     if (!roleData || roleData.role !== 'super_admin') {
       return NextResponse.json({ error: 'Acces refuse' }, { status: 403 });
+    }
+
+    // Si une instance est specifiee et que le role est admin, verifier qu'il n'y a pas deja un admin
+    if (instance_id && role === 'admin') {
+      const { data: existingAdmin } = await adminClient
+        .from('users_roles')
+        .select('id')
+        .eq('instance_id', instance_id)
+        .eq('role', 'admin')
+        .single();
+
+      if (existingAdmin) {
+        return NextResponse.json({
+          error: 'Cette instance a deja un administrateur. Une seule personne peut administrer une instance.'
+        }, { status: 400 });
+      }
     }
 
     // Verifier si l'email existe deja
@@ -157,24 +179,48 @@ export async function POST(request: Request) {
       console.log(`[Accounts] Nouveau compte cree: ${email} - Password: ${password}`);
     }
 
-    // Verifier si un role existe deja pour cette instance
-    const { data: existingRole } = await adminClient
-      .from('users_roles')
-      .select('id')
-      .eq('user_id', existingUser!.id)
-      .eq('instance_id', instance_id)
-      .single();
+    // Verifier si l'utilisateur a deja un role admin (avec ou sans instance)
+    if (role === 'admin') {
+      const { data: existingAdminRole } = await adminClient
+        .from('users_roles')
+        .select('id, instance_id')
+        .eq('user_id', existingUser!.id)
+        .eq('role', 'admin')
+        .single();
 
-    if (existingRole) {
-      return NextResponse.json({ error: 'Ce compte a deja un role pour cette instance' }, { status: 400 });
+      if (existingAdminRole) {
+        if (existingAdminRole.instance_id) {
+          return NextResponse.json({
+            error: 'Cet utilisateur est deja administrateur d\'une instance. Un admin ne peut gerer qu\'une seule instance.'
+          }, { status: 400 });
+        } else {
+          return NextResponse.json({
+            error: 'Cet utilisateur est deja administrateur sans instance assignee.'
+          }, { status: 400 });
+        }
+      }
     }
 
-    // Creer le role
+    // Verifier si un role existe deja pour cette instance (si instance specifiee)
+    if (instance_id) {
+      const { data: existingRole } = await adminClient
+        .from('users_roles')
+        .select('id')
+        .eq('user_id', existingUser!.id)
+        .eq('instance_id', instance_id)
+        .single();
+
+      if (existingRole) {
+        return NextResponse.json({ error: 'Ce compte a deja un role pour cette instance' }, { status: 400 });
+      }
+    }
+
+    // Creer le role (instance_id peut etre null pour un admin)
     const { error: roleError } = await adminClient
       .from('users_roles')
       .insert({
         user_id: existingUser!.id,
-        instance_id: instance_id,
+        instance_id: instance_id || null,
         role: role,
       });
 

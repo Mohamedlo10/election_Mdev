@@ -25,12 +25,17 @@ export async function PUT(
     const { id } = await params;
     const { role, instance_id } = await request.json();
 
-    if (!role || !instance_id) {
-      return NextResponse.json({ error: 'Donnees manquantes' }, { status: 400 });
+    if (!role) {
+      return NextResponse.json({ error: 'Le role est requis' }, { status: 400 });
     }
 
     if (!['admin', 'observer'].includes(role)) {
       return NextResponse.json({ error: 'Role invalide' }, { status: 400 });
+    }
+
+    // Pour les observateurs, l'instance est obligatoire
+    if (role === 'observer' && !instance_id) {
+      return NextResponse.json({ error: 'L\'instance est requise pour un observateur' }, { status: 400 });
     }
 
     // Verifier l'authentification
@@ -54,10 +59,10 @@ export async function PUT(
       return NextResponse.json({ error: 'Acces refuse' }, { status: 403 });
     }
 
-    // Verifier que le compte existe et n'est pas super_admin
+    // Verifier que le compte existe et recuperer ses infos
     const { data: existingRole } = await adminClient
       .from('users_roles')
-      .select('role')
+      .select('role, user_id, instance_id')
       .eq('id', id)
       .single();
 
@@ -69,12 +74,46 @@ export async function PUT(
       return NextResponse.json({ error: 'Impossible de modifier un super admin' }, { status: 403 });
     }
 
-    // Mettre a jour le role
+    // Si on assigne une instance a un admin, verifier qu'il n'y a pas deja un admin
+    if (instance_id && role === 'admin') {
+      const { data: existingAdmin } = await adminClient
+        .from('users_roles')
+        .select('id')
+        .eq('instance_id', instance_id)
+        .eq('role', 'admin')
+        .neq('id', id) // Exclure le compte actuel
+        .single();
+
+      if (existingAdmin) {
+        return NextResponse.json({
+          error: 'Cette instance a deja un administrateur. Une seule personne peut administrer une instance.'
+        }, { status: 400 });
+      }
+    }
+
+    // Si le nouveau role est admin, verifier que l'utilisateur n'est pas deja admin ailleurs
+    if (role === 'admin') {
+      const { data: existingAdminRole } = await adminClient
+        .from('users_roles')
+        .select('id, instance_id')
+        .eq('user_id', existingRole.user_id)
+        .eq('role', 'admin')
+        .neq('id', id) // Exclure le compte actuel
+        .single();
+
+      if (existingAdminRole) {
+        return NextResponse.json({
+          error: 'Cet utilisateur est deja administrateur d\'une autre instance. Un admin ne peut gerer qu\'une seule instance.'
+        }, { status: 400 });
+      }
+    }
+
+    // Mettre a jour le role (instance_id peut etre null pour un admin)
     const { error: updateError } = await adminClient
       .from('users_roles')
       .update({
         role: role,
-        instance_id: instance_id,
+        instance_id: instance_id || null,
       })
       .eq('id', id);
 
