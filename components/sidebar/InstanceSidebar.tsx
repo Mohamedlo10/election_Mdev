@@ -3,12 +3,12 @@
 import { useState } from 'react';
 import {
   LayoutDashboard,
-  FolderKanban,
+  FolderTree,
   Users,
-  UserCheck,
   Vote,
   BarChart3,
   Settings,
+  UserCheck,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useInstance } from '@/contexts/InstanceContext';
@@ -21,7 +21,7 @@ import {
   NavItem,
 } from './SidebarBase';
 
-const instanceNavItems: NavItem[] = [
+const navItems: NavItem[] = [
   {
     label: 'Dashboard',
     href: '',
@@ -31,19 +31,19 @@ const instanceNavItems: NavItem[] = [
   {
     label: 'Categories',
     href: '/categories',
-    icon: FolderKanban,
+    icon: FolderTree,
     roles: ['super_admin', 'admin'],
   },
   {
     label: 'Candidats',
     href: '/candidates',
-    icon: Users,
+    icon: UserCheck,
     roles: ['super_admin', 'admin'],
   },
   {
     label: 'Votants',
     href: '/voters',
-    icon: UserCheck,
+    icon: Users,
     roles: ['super_admin', 'admin'],
   },
   {
@@ -70,37 +70,42 @@ interface InstanceSidebarProps {
   instanceId: string;
 }
 
-export default function InstanceSidebar({ instanceId }: InstanceSidebarProps) {
+export function InstanceSidebar({ instanceId }: InstanceSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const { authUser } = useAuth();
-  const { currentInstance, theme } = useInstance();
+  const { currentInstance } = useInstance();
 
   const basePath = `/instance/${instanceId}`;
-  const isSuperAdmin = authUser?.role === 'super_admin';
+  const userRole = authUser?.role;
+  const isSuperAdmin = userRole === 'super_admin';
+
+  const instanceName = currentInstance?.name || 'Instance';
+  const instanceLogo = currentInstance?.logo_url;
 
   return (
     <SidebarContainer collapsed={collapsed}>
       <SidebarHeader
         collapsed={collapsed}
         onToggle={() => setCollapsed(!collapsed)}
-        title={currentInstance?.name || 'Instance'}
+        title={instanceName}
         homeHref={basePath}
         logoColor="bg-theme-primary"
-        instanceLogo={currentInstance?.logo_url}
+        instanceLogo={instanceLogo}
       />
 
       <SidebarNav
-        items={instanceNavItems}
+        items={navItems}
         collapsed={collapsed}
-        userRole={authUser?.role}
+        userRole={userRole}
         basePath={basePath}
         activeColor="bg-theme-primary-light text-theme-primary"
       />
 
-      {/* Bouton retour super admin */}
       {isSuperAdmin && <ExitToSuperAdmin collapsed={collapsed} />}
 
       <SidebarUserSection collapsed={collapsed} />
     </SidebarContainer>
   );
 }
+
+export default InstanceSidebar;
