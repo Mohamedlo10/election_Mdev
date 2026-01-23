@@ -44,7 +44,7 @@ export default function HomePage() {
             <div className="w-10 h-10 bg-green-500 rounded-lg flex items-center justify-center">
               <Vote className="w-6 h-6 text-white" />
             </div>
-            <span className="text-xl font-bold text-gray-900">ESEA</span>
+            <span className="text-xl font-bold text-gray-900">MDev_Election</span>
           </div>
           <nav className="flex items-center gap-4">
             {loading ? (
@@ -83,7 +83,7 @@ export default function HomePage() {
               <span className="text-green-500">simplicité</span>
             </h1>
             <p className="text-lg md:text-xl text-gray-600 mb-8 leading-relaxed">
-              ESEA est une plateforme complète pour gérer vos élections :
+              MDev_Election est une plateforme complète pour gérer vos élections :
               créez des catégories, ajoutez des candidats, importez vos votants
               et suivez les résultats en temps réel.
             </p>
@@ -109,7 +109,7 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 mb-4">
-              Pourquoi choisir ESEA ?
+              Pourquoi choisir MDev_Election ?
             </h2>
             <p className="text-gray-600 max-w-2xl mx-auto">
               Une solution moderne et intuitive pour tous vos besoins en matière d&apos;élections
@@ -172,7 +172,7 @@ export default function HomePage() {
             Prêt à organiser votre élection ?
           </h2>
           <p className="text-gray-400 mb-8">
-            Inscrivez-vous gratuitement et commencez à utiliser ESEA dès maintenant.
+            Inscrivez-vous gratuitement et commencez à utiliser MDev_Election dès maintenant.
           </p>
           <Link href="/register">
             <Button size="lg" className="bg-green-500 hover:bg-green-600">
@@ -190,10 +190,10 @@ export default function HomePage() {
             <div className="w-8 h-8 bg-green-500 rounded-lg flex items-center justify-center">
               <Vote className="w-4 h-4 text-white" />
             </div>
-            <span className="text-white font-bold">ESEA</span>
+            <span className="text-white font-bold">MDev_Election</span>
           </div>
           <p className="text-gray-500 text-sm">
-            © {new Date().getFullYear()} ESEA - Système d&apos;Élection. Tous droits réservés.
+            © {new Date().getFullYear()} MDev_Election - Système d&apos;Élection. Tous droits réservés.
           </p>
         </div>
       </footer>

@@ -6,7 +6,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
       <header className="w-full py-4 px-6">
         <div className="max-w-7xl mx-auto">
           <a href="/" className="text-xl font-bold text-gray-900">
-            ESEA
+            MDev_Election
           </a>
         </div>
       </header>
@@ -16,7 +16,7 @@ export default function AuthLayout({ children }: { children: ReactNode }) {
         </div>
       </main>
       <footer className="w-full py-4 px-6 text-center text-sm text-gray-500">
-        © {new Date().getFullYear()} ESEA - Système d&apos;Élection
+        © {new Date().getFullYear()} MDev_Election - Système d&apos;Élection
       </footer>
     </div>
   );

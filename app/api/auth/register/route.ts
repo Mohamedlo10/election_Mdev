@@ -67,7 +67,7 @@ export async function POST(request: Request) {
     }
 
     // Vérifier le statut de l'instance
-    const instance = voterData.election_instances as { id: string; name: string; status: string };
+    const instance = voterData.election_instances as unknown as { id: string; name: string; status: string } | null;
     if (!instance || !['draft', 'active', 'paused'].includes(instance.status)) {
       return NextResponse.json(
         { error: 'Cette élection n\'est plus disponible pour l\'inscription' },

@@ -99,7 +99,7 @@ export default function DashboardPage() {
       case 'voter':
         return 'Participez aux élections';
       default:
-        return 'Bienvenue sur ESEA';
+        return 'Bienvenue sur MDev_Election';
     }
   };
 

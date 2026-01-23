@@ -91,7 +91,7 @@ const CardDescription = forwardRef<HTMLParagraphElement, CardDescriptionProps>(
 CardDescription.displayName = 'CardDescription';
 
 interface CardContentProps extends HTMLAttributes<HTMLDivElement> {
-  children: ReactNode;
+  children?: ReactNode;
 }
 
 const CardContent = forwardRef<HTMLDivElement, CardContentProps>(

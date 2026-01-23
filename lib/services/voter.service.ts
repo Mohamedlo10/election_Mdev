@@ -107,12 +107,12 @@ export function parseExcelFile(file: File): Promise<VoterImport[]> {
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        const jsonData = XLSX.utils.sheet_to_json(worksheet);
+        const jsonData = XLSX.utils.sheet_to_json(worksheet) as Record<string, unknown>[];
 
-        const voters: VoterImport[] = jsonData.map((row: Record<string, unknown>) => ({
+        const voters: VoterImport[] = jsonData.map((row) => ({
           full_name: String(row['full_name'] || row['nom'] || row['name'] || row['prenom_nom'] || '').trim(),
           email: String(row['email'] || row['Email'] || row['EMAIL'] || '').trim().toLowerCase(),
-        })).filter((v: VoterImport) => v.full_name && v.email);
+        })).filter((v) => v.full_name && v.email);
 
         resolve(voters);
       } catch {

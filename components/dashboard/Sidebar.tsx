@@ -106,7 +106,7 @@ export default function Sidebar() {
               <Vote className="w-6 h-6 text-white" />
             </div>
             {!collapsed && (
-              <span className="text-xl font-bold text-gray-900">ESEA</span>
+              <span className="text-xl font-bold text-gray-900">MDev_Election</span>
             )}
           </Link>
           <button

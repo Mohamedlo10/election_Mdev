@@ -10,6 +10,7 @@ interface AuthContextType {
   session: Session | null;
   authUser: AuthUser | null;
   loading: boolean;
+  hasNoRole: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -65,16 +66,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [hasNoRole, setHasNoRole] = useState(false);
 
   const supabase = createClient();
 
   const fetchUserRole = useCallback(async (userId: string, email: string): Promise<AuthUser | null> => {
+    console.log('[Auth] Fetching role for user:', userId, email);
+
     // Vérifier d'abord dans users_roles
-    const { data: roleData } = await supabase
+    const { data: roleData, error: roleError } = await supabase
       .from('users_roles')
       .select('role, instance_id')
       .eq('user_id', userId)
       .single();
+
+    console.log('[Auth] users_roles result:', { roleData, roleError });
 
     if (roleData) {
       return {
@@ -86,11 +92,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // Sinon vérifier si c'est un votant
-    const { data: voterData } = await supabase
+    const { data: voterData, error: voterError } = await supabase
       .from('voters')
       .select('*')
       .eq('auth_uid', userId)
       .single();
+
+    console.log('[Auth] voters result:', { voterData, voterError });
 
     if (voterData) {
       return {
@@ -102,6 +110,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       };
     }
 
+    console.log('[Auth] No role found for user');
     return null;
   }, [supabase]);
 
@@ -112,7 +121,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const userRole = await fetchUserRole(currentUser.id, currentUser.email || '');
       if (userRole) {
         setAuthUser(userRole);
+        setHasNoRole(false);
         saveToStorage(userRole);
+      } else {
+        setAuthUser(null);
+        setHasNoRole(true);
+        clearStorage();
       }
     }
   }, [supabase, fetchUserRole]);
@@ -139,11 +153,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           );
           if (userRole) {
             setAuthUser(userRole);
+            setHasNoRole(false);
             saveToStorage(userRole);
+          } else {
+            // Utilisateur connecté mais sans rôle assigné
+            setAuthUser(null);
+            setHasNoRole(true);
+            clearStorage();
           }
+        } else {
+          setHasNoRole(false);
         }
       } else {
         setAuthUser(null);
+        setHasNoRole(false);
         clearStorage();
       }
 
@@ -165,10 +188,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           );
           if (userRole) {
             setAuthUser(userRole);
+            setHasNoRole(false);
             saveToStorage(userRole);
+          } else {
+            setAuthUser(null);
+            setHasNoRole(true);
+            clearStorage();
           }
         } else if (event === 'SIGNED_OUT') {
           setAuthUser(null);
+          setHasNoRole(false);
           clearStorage();
         }
 
@@ -205,6 +234,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     authUser,
     loading,
+    hasNoRole,
     signIn,
     signOut,
     refreshUser,

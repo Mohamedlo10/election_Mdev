@@ -1,4 +1,4 @@
-# ESEA - Election System Enterprise Application
+# MDev_Election - Election System Enterprise Application
 
 ## 📋 CONTEXTE PROJET
 Plateforme d'élection multi-instances avec gestion des votants, candidats par catégories, et suivi des votes en temps réel.

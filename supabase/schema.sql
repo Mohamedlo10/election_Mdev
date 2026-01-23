@@ -1,5 +1,5 @@
 -- ============================================
--- ESEA - Election System Enterprise Application
+-- MDev_Election - Election System Enterprise Application
 -- Schéma SQL pour Supabase
 -- ============================================
 

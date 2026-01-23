@@ -50,7 +50,7 @@ export function getCodeEmailTemplate(fullName: string, code: string, instanceNam
     </head>
     <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #1f2937; max-width: 600px; margin: 0 auto; padding: 20px;">
       <div style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-        <h1 style="color: white; margin: 0; font-size: 24px;">ESEA - Système d'Élection</h1>
+        <h1 style="color: white; margin: 0; font-size: 24px;">MDev_Election - Système d'Élection</h1>
         <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">${instanceName}</p>
       </div>
 
@@ -76,7 +76,7 @@ export function getCodeEmailTemplate(fullName: string, code: string, instanceNam
       </div>
 
       <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
-        <p>© ${new Date().getFullYear()} ESEA - Tous droits réservés</p>
+        <p>© ${new Date().getFullYear()} MDev_Election - Tous droits réservés</p>
       </div>
     </body>
     </html>

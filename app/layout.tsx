@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ESEA - Système d'Élection",
+  title: "MDev_Election - Système d'Élection",
   description: "Plateforme d'élection multi-instances sécurisée",
 };
 
