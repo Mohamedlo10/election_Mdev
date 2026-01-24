@@ -19,7 +19,7 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'esea_auth_user';
-const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
 interface CachedUser {
   authUser: AuthUser;
@@ -55,7 +55,18 @@ function saveToStorage(authUser: AuthUser) {
 function clearStorage() {
   if (typeof window === 'undefined') return;
   try {
+    // Supprimer le cache utilisateur
     localStorage.removeItem(STORAGE_KEY);
+
+    // Nettoyer les elements Supabase
+    const keysToRemove: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && (key.startsWith('sb-') || key.startsWith('supabase'))) {
+        keysToRemove.push(key);
+      }
+    }
+    keysToRemove.forEach(key => localStorage.removeItem(key));
   } catch {
     // Ignore storage errors
   }
@@ -121,12 +132,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [supabase, fetchUserRole]);
 
   useEffect(() => {
-    // Essayer de charger depuis le cache d'abord
-    const cached = getFromStorage();
-    if (cached) {
-      setAuthUser(cached.authUser);
-    }
-
     // Obtenir la session actuelle
     const getSession = async () => {
       const { data: { session: currentSession } } = await supabase.auth.getSession();
@@ -134,21 +139,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(currentSession?.user ?? null);
 
       if (currentSession?.user) {
-        // Si pas de cache ou cache expiré, fetch depuis l'API
-        if (!cached || Date.now() - cached.timestamp > CACHE_DURATION) {
+        // Verifier le cache
+        const cached = getFromStorage();
+        const isCacheValid = cached &&
+          cached.authUser.id === currentSession.user.id &&
+          Date.now() - cached.timestamp < CACHE_DURATION;
+
+        if (isCacheValid) {
+          // Utiliser le cache directement
+          console.log('[Auth] Using cached user data');
+          setAuthUser(cached.authUser);
+          setHasNoRole(false);
+        } else {
+          // Cache invalide ou expire, fetch depuis l'API
           const userRole = await fetchUserRole();
           if (userRole) {
             setAuthUser(userRole);
             setHasNoRole(false);
             saveToStorage(userRole);
           } else {
-            // Utilisateur connecté mais sans rôle assigné
+            // Utilisateur connecte mais sans role assigne
             setAuthUser(null);
             setHasNoRole(true);
             clearStorage();
           }
-        } else {
-          setHasNoRole(false);
         }
       } else {
         setAuthUser(null);
