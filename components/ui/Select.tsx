@@ -36,7 +36,7 @@ const Select = forwardRef<HTMLSelectElement, SelectProps>(
             focus:outline-none focus:ring-2 focus:ring-offset-0
             ${error
               ? 'border-red-300 focus:border-red-500 focus:ring-red-200'
-              : 'border-gray-300 focus:border-green-500 focus:ring-green-200'
+              : 'border-gray-300 focus:border-theme-primary focus:ring-theme-primary-light'
             }
             bg-white
             disabled:bg-gray-50 disabled:cursor-not-allowed

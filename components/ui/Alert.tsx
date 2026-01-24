@@ -18,10 +18,10 @@ const Alert = forwardRef<HTMLDivElement, AlertProps>(
         icon: <Info className="w-5 h-5 text-blue-500" />,
       },
       success: {
-        bg: 'bg-green-50',
-        border: 'border-green-200',
-        text: 'text-green-800',
-        icon: <CheckCircle className="w-5 h-5 text-green-500" />,
+        bg: 'bg-theme-primary-lighter',
+        border: 'border-theme-primary-medium',
+        text: 'text-theme-primary-darker',
+        icon: <CheckCircle className="w-5 h-5 text-theme-primary" />,
       },
       warning: {
         bg: 'bg-yellow-50',

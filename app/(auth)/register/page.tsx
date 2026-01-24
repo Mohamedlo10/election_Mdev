@@ -47,11 +47,11 @@ export default function RegisterPage() {
   if (success) {
     return (
       <Card>
-        <CardContent className="text-center py-8">
-          <div className="w-20 h-20 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-6">
-            <CheckCircle className="w-10 h-10 text-green-600" />
+        <CardContent className="text-center py-6 sm:py-8">
+          <div className="w-16 h-16 sm:w-20 sm:h-20 bg-theme-primary-lighter rounded-full flex items-center justify-center mx-auto mb-4 sm:mb-6">
+            <CheckCircle className="w-8 h-8 sm:w-10 sm:h-10 text-theme-primary" />
           </div>
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
             Compte créé !
           </h2>
           <p className="text-gray-600 mb-6">
@@ -76,8 +76,8 @@ export default function RegisterPage() {
   return (
     <Card>
       <CardHeader className="text-center">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <UserPlus className="w-8 h-8 text-green-600" />
+        <div className="w-14 h-14 sm:w-16 sm:h-16 bg-theme-primary-lighter rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+          <UserPlus className="w-7 h-7 sm:w-8 sm:h-8 text-theme-primary" />
         </div>
         <CardTitle>Inscription</CardTitle>
         <CardDescription>
@@ -122,7 +122,7 @@ export default function RegisterPage() {
       <CardFooter className="flex flex-col gap-3 text-center">
         <p className="text-sm text-gray-600">
           Déjà inscrit ?{' '}
-          <Link href="/login" className="text-green-600 hover:text-green-700 font-medium">
+          <Link href="/login" className="text-theme-primary hover:text-theme-primary-dark font-medium">
             Se connecter
           </Link>
         </p>

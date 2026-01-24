@@ -32,7 +32,7 @@ export function SidebarHeader({
   onToggle,
   title,
   homeHref,
-  logoColor = 'bg-green-500',
+  logoColor = 'bg-theme-primary',
   instanceLogo,
 }: SidebarHeaderProps) {
   return (
@@ -57,7 +57,8 @@ export function SidebarHeader({
       </Link>
       <button
         onClick={onToggle}
-        className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+        className="hidden lg:flex p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+        aria-label="Toggle sidebar"
       >
         {collapsed ? (
           <ChevronRight className="w-5 h-5" />
@@ -82,7 +83,7 @@ export function SidebarNav({
   collapsed,
   userRole,
   basePath = '',
-  activeColor = 'bg-green-50 text-green-700',
+  activeColor = 'bg-theme-primary-lighter text-theme-primary border-l-4 border-theme-primary',
 }: SidebarNavProps) {
   const pathname = usePathname();
 
@@ -105,7 +106,7 @@ export function SidebarNav({
               flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors
               ${isActive
                 ? activeColor
-                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                : 'text-gray-600 hover:bg-theme-primary-lighter hover:text-theme-primary'
               }
             `}
           >
@@ -199,6 +200,7 @@ export function SidebarContainer({ collapsed, children }: SidebarContainerProps)
         fixed left-0 top-0 h-full bg-white border-r border-gray-200
         transition-all duration-300 z-40
         ${collapsed ? 'w-16' : 'w-64'}
+        lg:translate-x-0
       `}
     >
       <div className="flex flex-col h-full">

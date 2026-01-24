@@ -87,8 +87,8 @@ export default function LoginPage() {
   return (
     <Card>
       <CardHeader className="text-center">
-        <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <Vote className="w-8 h-8 text-green-600" />
+        <div className="w-14 h-14 sm:w-16 sm:h-16 bg-theme-primary-lighter rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
+          <Vote className="w-7 h-7 sm:w-8 sm:h-8 text-theme-primary" />
         </div>
         <CardTitle>Connexion</CardTitle>
         <CardDescription>
@@ -120,7 +120,7 @@ export default function LoginPage() {
             <label className="block text-sm font-medium text-gray-700 mb-2 text-center">
               Code à 6 chiffres
             </label>
-            <div className="flex gap-3 justify-center">
+            <div className="flex gap-2 sm:gap-3 justify-center">
               {code.map((digit, index) => (
                 <input
                   key={index}
@@ -132,7 +132,7 @@ export default function LoginPage() {
                   onChange={(e) => handleCodeChange(index, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(index, e)}
                   onPaste={handlePaste}
-                  className="w-12 h-12 text-black text-center text-2xl font-semibold border-2 border-gray-300 rounded-lg focus:border-green-500 focus:ring-2 focus:ring-green-200 outline-none transition-all"
+                  className="w-10 h-10 sm:w-12 sm:h-12 text-black text-center text-xl sm:text-2xl font-semibold border-2 border-gray-300 rounded-lg focus:border-theme-primary focus:ring-2 focus:ring-theme-primary-light outline-none transition-all"
                   required
                 />
               ))}
@@ -152,7 +152,7 @@ export default function LoginPage() {
       <CardFooter className="flex flex-col gap-3 text-center">
         <p className="text-sm text-gray-600">
           Pas encore inscrit ?{' '}
-          <Link href="/register" className="text-green-600 hover:text-green-700 font-medium">
+          <Link href="/register" className="text-theme-primary hover:text-theme-primary-dark font-medium">
             Créer un compte
           </Link>
         </p>
