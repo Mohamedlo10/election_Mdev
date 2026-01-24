@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { Settings, Play, Pause, StopCircle, AlertTriangle } from 'lucide-react';
+import { Settings, Play, Pause, StopCircle, AlertTriangle, XCircle, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -277,16 +277,57 @@ export default function InstanceSettingsPage() {
             ? 'Mettre en pause'
             : 'Terminer l\'election'
         }
-        size="sm"
+        size={actionType === 'start' ? 'md' : 'sm'}
       >
         <div className="space-y-4">
+          {actionType === 'start' && (
+            <>
+              <Alert variant="warning">
+                <AlertTriangle className="w-4 h-4 mr-2" />
+                Attention: Cette action a des consequences importantes
+              </Alert>
+
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <h4 className="font-medium text-yellow-800 mb-3">
+                  Une fois l&apos;election demarree:
+                </h4>
+                <ul className="space-y-2 text-sm text-yellow-700">
+                  <li className="flex items-start gap-2">
+                    <XCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                    <span>Les <strong>categories</strong> ne peuvent plus etre modifiees ni ajoutees</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <XCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                    <span>Les <strong>candidats</strong> ne peuvent plus etre modifies ni ajoutes</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <XCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
+                    <span>Les <strong>informations des votants</strong> ne peuvent plus etre modifiees</span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
+                    <span>Vous pouvez toujours <strong>ajouter de nouveaux votants</strong></span>
+                  </li>
+                </ul>
+              </div>
+
+              <p className="text-gray-600 text-sm">
+                Les votants pourront commencer a voter des que l&apos;election sera active.
+              </p>
+            </>
+          )}
+
           {actionType === 'end' && (
             <Alert variant="warning">
               <AlertTriangle className="w-4 h-4 mr-2" />
               Cette action est irreversible
             </Alert>
           )}
-          <p className="text-gray-600">{getActionMessage()}</p>
+
+          {actionType !== 'start' && (
+            <p className="text-gray-600">{getActionMessage()}</p>
+          )}
+
           <div className="flex justify-end gap-3 pt-4">
             <Button
               variant="outline"

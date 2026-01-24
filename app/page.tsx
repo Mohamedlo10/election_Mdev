@@ -175,7 +175,7 @@ export default function HomePage() {
           <h2 className="text-2xl sm:text-3xl font-bold text-white mb-3 sm:mb-4">
             Prêt à organiser votre élection ?
           </h2>
-          <p className="text-sm sm:text-base text-gray-300 mb-6 sm:mb-8 px-2">
+          <p className="text-sm sm:text-base text-white mb-6 sm:mb-8 px-2">
             Inscrivez-vous gratuitement et commencez à utiliser MDev_Election dès maintenant.
           </p>
           <Link href="/register" className="inline-block">

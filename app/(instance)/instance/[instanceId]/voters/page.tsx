@@ -13,6 +13,7 @@ import {
   CheckCircle,
   XCircle,
   Search,
+  Lock,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -29,11 +30,13 @@ import {
   importVoters,
   getVotersStats,
 } from '@/lib/services/voter.service';
+import { useInstance } from '@/contexts/InstanceContext';
 import type { Voter, VoterImport } from '@/types';
 
 export default function InstanceVotersPage() {
   const params = useParams();
   const instanceId = params.instanceId as string;
+  const { currentInstance, canModifyVoters, canAddVoters } = useInstance();
 
   const [voters, setVoters] = useState<Voter[]>([]);
   const [filteredVoters, setFilteredVoters] = useState<Voter[]>([]);
@@ -220,6 +223,17 @@ export default function InstanceVotersPage() {
 
   return (
     <div className="space-y-6">
+      {/* Alert banner when modifications are locked */}
+      {!canModifyVoters && currentInstance && (
+        <Alert variant="warning">
+          <Lock className="w-4 h-4 mr-2 flex-shrink-0" />
+          <span>
+            L&apos;election est {currentInstance.status === 'active' ? 'active' : currentInstance.status === 'paused' ? 'en pause' : 'terminee'}.
+            Vous pouvez toujours ajouter de nouveaux votants, mais les informations existantes ne peuvent plus etre modifiees.
+          </span>
+        </Alert>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Votants</h1>
@@ -237,12 +251,13 @@ export default function InstanceVotersPage() {
             variant="outline"
             onClick={() => fileInputRef.current?.click()}
             className="flex-1 sm:flex-none"
+            disabled={!canAddVoters}
           >
             <Upload className="w-4 h-4 mr-2" />
             <span className="hidden sm:inline">Importer</span>
             <span className="sm:hidden">Import</span>
           </Button>
-          <Button onClick={() => setShowCreateModal(true)} className="flex-1 sm:flex-none">
+          <Button onClick={() => setShowCreateModal(true)} className="flex-1 sm:flex-none" disabled={!canAddVoters}>
             <Plus className="w-4 h-4 mr-2" />
             Ajouter
           </Button>
@@ -321,7 +336,7 @@ export default function InstanceVotersPage() {
                 ? 'Essayez avec d\'autres termes de recherche'
                 : 'Ajoutez des votants manuellement ou importez depuis un fichier Excel'}
             </p>
-            {!searchTerm && (
+            {!searchTerm && canAddVoters && (
               <div className="flex items-center justify-center gap-3">
                 <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
                   <Upload className="w-4 h-4 mr-2" />
@@ -389,17 +404,27 @@ export default function InstanceVotersPage() {
                         {actionMenuId === voter.id && (
                           <div className="absolute right-0 top-8 w-40 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-10">
                             <button
-                              onClick={() => openEditModal(voter)}
-                              className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                              onClick={() => canModifyVoters && openEditModal(voter)}
+                              disabled={!canModifyVoters}
+                              className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
+                                canModifyVoters
+                                  ? 'text-gray-700 hover:bg-gray-50'
+                                  : 'text-gray-400 cursor-not-allowed'
+                              }`}
                             >
-                              <Edit className="w-4 h-4" />
+                              {canModifyVoters ? <Edit className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                               Modifier
                             </button>
                             <button
-                              onClick={() => openDeleteModal(voter)}
-                              className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                              onClick={() => canModifyVoters && openDeleteModal(voter)}
+                              disabled={!canModifyVoters}
+                              className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
+                                canModifyVoters
+                                  ? 'text-red-600 hover:bg-red-50'
+                                  : 'text-gray-400 cursor-not-allowed'
+                              }`}
                             >
-                              <Trash2 className="w-4 h-4" />
+                              {canModifyVoters ? <Trash2 className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                               Supprimer
                             </button>
                           </div>

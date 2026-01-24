@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Plus, FolderKanban, MoreVertical, Edit, Trash2, GripVertical } from 'lucide-react';
+import { Plus, FolderKanban, MoreVertical, Edit, Trash2, GripVertical, Lock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -15,11 +15,13 @@ import {
   updateCategory,
   deleteCategory,
 } from '@/lib/services/category.service';
+import { useInstance } from '@/contexts/InstanceContext';
 import type { Category, CreateCategory } from '@/types';
 
 export default function InstanceCategoriesPage() {
   const params = useParams();
   const instanceId = params.instanceId as string;
+  const { currentInstance, canModifyCategories } = useInstance();
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
@@ -130,12 +132,28 @@ export default function InstanceCategoriesPage() {
 
   return (
     <div className="space-y-6">
+      {/* Alert banner when modifications are locked */}
+      {!canModifyCategories && currentInstance && (
+        <Alert variant="warning">
+          <Lock className="w-4 h-4 mr-2 flex-shrink-0" />
+          <span>
+            L&apos;election est {currentInstance.status === 'active' ? 'active' : currentInstance.status === 'paused' ? 'en pause' : 'terminee'}.
+            Les categories ne peuvent plus etre modifiees.
+          </span>
+        </Alert>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Categories</h1>
           <p className="text-sm sm:text-base text-gray-600 mt-1">Gerez les categories de vote</p>
         </div>
-        <Button onClick={() => setShowCreateModal(true)} className="w-full sm:w-auto">
+        <Button
+          onClick={() => setShowCreateModal(true)}
+          className="w-full sm:w-auto"
+          disabled={!canModifyCategories}
+          title={!canModifyCategories ? 'Non disponible: l\'election a demarree' : undefined}
+        >
           <Plus className="w-4 h-4 mr-2" />
           Nouvelle categorie
         </Button>
@@ -161,11 +179,17 @@ export default function InstanceCategoriesPage() {
           <CardContent className="text-center py-12">
             <FolderKanban className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">Aucune categorie</h3>
-            <p className="text-gray-500 mb-4">Creez votre premiere categorie de vote</p>
-            <Button onClick={() => setShowCreateModal(true)}>
-              <Plus className="w-4 h-4 mr-2" />
-              Creer une categorie
-            </Button>
+            <p className="text-gray-500 mb-4">
+              {canModifyCategories
+                ? 'Creez votre premiere categorie de vote'
+                : 'Aucune categorie n\'a ete creee avant le demarrage de l\'election'}
+            </p>
+            {canModifyCategories && (
+              <Button onClick={() => setShowCreateModal(true)}>
+                <Plus className="w-4 h-4 mr-2" />
+                Creer une categorie
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -199,17 +223,27 @@ export default function InstanceCategoriesPage() {
                   {actionMenuId === category.id && (
                     <div className="absolute right-0 top-8 w-40 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-10">
                       <button
-                        onClick={() => openEditModal(category)}
-                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        onClick={() => canModifyCategories && openEditModal(category)}
+                        disabled={!canModifyCategories}
+                        className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
+                          canModifyCategories
+                            ? 'text-gray-700 hover:bg-gray-50'
+                            : 'text-gray-400 cursor-not-allowed'
+                        }`}
                       >
-                        <Edit className="w-4 h-4" />
+                        {canModifyCategories ? <Edit className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                         Modifier
                       </button>
                       <button
-                        onClick={() => openDeleteModal(category)}
-                        className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                        onClick={() => canModifyCategories && openDeleteModal(category)}
+                        disabled={!canModifyCategories}
+                        className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
+                          canModifyCategories
+                            ? 'text-red-600 hover:bg-red-50'
+                            : 'text-gray-400 cursor-not-allowed'
+                        }`}
                       >
-                        <Trash2 className="w-4 h-4" />
+                        {canModifyCategories ? <Trash2 className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                         Supprimer
                       </button>
                     </div>

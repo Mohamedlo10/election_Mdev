@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Plus, Users, MoreVertical, Edit, Trash2, User, FileText } from 'lucide-react';
+import { Plus, Users, MoreVertical, Edit, Trash2, User, FileText, Lock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -18,11 +18,13 @@ import {
   updateCandidate,
   deleteCandidate,
 } from '@/lib/services/candidate.service';
+import { useInstance } from '@/contexts/InstanceContext';
 import type { Candidate, Category, CreateCandidate } from '@/types';
 
 export default function InstanceCandidatesPage() {
   const params = useParams();
   const instanceId = params.instanceId as string;
+  const { currentInstance, canModifyCandidates } = useInstance();
 
   const [categories, setCategories] = useState<Category[]>([]);
   const [selectedCategoryId, setSelectedCategoryId] = useState<string>('');
@@ -166,12 +168,28 @@ export default function InstanceCandidatesPage() {
 
   return (
     <div className="space-y-6">
+      {/* Alert banner when modifications are locked */}
+      {!canModifyCandidates && currentInstance && (
+        <Alert variant="warning">
+          <Lock className="w-4 h-4 mr-2 flex-shrink-0" />
+          <span>
+            L&apos;election est {currentInstance.status === 'active' ? 'active' : currentInstance.status === 'paused' ? 'en pause' : 'terminee'}.
+            Les candidats ne peuvent plus etre modifies.
+          </span>
+        </Alert>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Candidats</h1>
           <p className="text-sm sm:text-base text-gray-600 mt-1">Gerez les candidats par categorie</p>
         </div>
-        <Button onClick={openCreateModal} disabled={!selectedCategoryId} className="w-full sm:w-auto">
+        <Button
+          onClick={openCreateModal}
+          disabled={!selectedCategoryId || !canModifyCandidates}
+          className="w-full sm:w-auto"
+          title={!canModifyCandidates ? 'Non disponible: l\'election a demarree' : undefined}
+        >
           <Plus className="w-4 h-4 mr-2" />
           Nouveau candidat
         </Button>
@@ -221,11 +239,17 @@ export default function InstanceCandidatesPage() {
           <CardContent className="text-center py-12">
             <Users className="w-12 h-12 text-gray-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun candidat</h3>
-            <p className="text-gray-500 mb-4">Ajoutez des candidats a cette categorie</p>
-            <Button onClick={openCreateModal}>
-              <Plus className="w-4 h-4 mr-2" />
-              Ajouter un candidat
-            </Button>
+            <p className="text-gray-500 mb-4">
+              {canModifyCandidates
+                ? 'Ajoutez des candidats a cette categorie'
+                : 'Aucun candidat n\'a ete ajoute avant le demarrage de l\'election'}
+            </p>
+            {canModifyCandidates && (
+              <Button onClick={openCreateModal}>
+                <Plus className="w-4 h-4 mr-2" />
+                Ajouter un candidat
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (
@@ -265,17 +289,27 @@ export default function InstanceCandidatesPage() {
                     {actionMenuId === candidate.id && (
                       <div className="absolute right-0 top-8 w-40 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-10">
                         <button
-                          onClick={() => openEditModal(candidate)}
-                          className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                          onClick={() => canModifyCandidates && openEditModal(candidate)}
+                          disabled={!canModifyCandidates}
+                          className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
+                            canModifyCandidates
+                              ? 'text-gray-700 hover:bg-gray-50'
+                              : 'text-gray-400 cursor-not-allowed'
+                          }`}
                         >
-                          <Edit className="w-4 h-4" />
+                          {canModifyCandidates ? <Edit className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                           Modifier
                         </button>
                         <button
-                          onClick={() => openDeleteModal(candidate)}
-                          className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                          onClick={() => canModifyCandidates && openDeleteModal(candidate)}
+                          disabled={!canModifyCandidates}
+                          className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
+                            canModifyCandidates
+                              ? 'text-red-600 hover:bg-red-50'
+                              : 'text-gray-400 cursor-not-allowed'
+                          }`}
                         >
-                          <Trash2 className="w-4 h-4" />
+                          {canModifyCandidates ? <Trash2 className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
                           Supprimer
                         </button>
                       </div>

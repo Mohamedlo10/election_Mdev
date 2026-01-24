@@ -7,10 +7,25 @@
   /* Theme dynamique - valeurs par défaut */
   --theme-primary: #22c55e;
   --theme-primary-light: rgba(34, 197, 94, 0.1);
+  --theme-primary-lighter: rgba(34, 197, 94, 0.05);
+  --theme-primary-medium: rgba(34, 197, 94, 0.3);
+  --theme-primary-dark: #16a34a;
+  --theme-primary-darker: #15803d;
+  --theme-primary-bright: #4ade80;
+  
   --theme-secondary: #1f2937;
   --theme-secondary-light: rgba(31, 41, 55, 0.1);
+  --theme-secondary-lighter: rgba(31, 41, 55, 0.05);
+  --theme-secondary-medium: rgba(31, 41, 55, 0.3);
+  --theme-secondary-dark: #111827;
+  --theme-secondary-darker: #030712;
+  
   --theme-accent: #eab308;
   --theme-accent-light: rgba(234, 179, 8, 0.1);
+  --theme-accent-lighter: rgba(234, 179, 8, 0.05);
+  --theme-accent-medium: rgba(234, 179, 8, 0.3);
+  --theme-accent-dark: #ca8a04;
+  --theme-accent-darker: #a16207;
 }
 
 @theme inline {
@@ -32,7 +47,7 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
-Input,input, textarea,select,Select,p,div,span{
+Input,input, textarea,select,Select,div{
   font-family: inherit;
   color: black;
 }
@@ -137,4 +152,84 @@ Input,input, textarea,select,Select,p,div,span{
 }
 .shadow-theme-primary-lg {
   box-shadow: 0 10px 15px -3px var(--theme-primary-light), 0 4px 6px -2px var(--theme-primary-lighter);
+}
+
+/* ============================================
+   BUTTON STYLES - States hover/active/focus
+   ============================================ */
+
+/* Primary button */
+.btn-primary {
+  background-color: var(--theme-primary) !important;
+  color: white !important;
+}
+.btn-primary:hover:not(:disabled) {
+  background-color: var(--theme-primary-dark) !important;
+}
+.btn-primary:active:not(:disabled) {
+  background-color: var(--theme-primary-darker) !important;
+}
+.btn-primary:focus {
+  box-shadow: 0 0 0 2px white, 0 0 0 4px var(--theme-primary);
+}
+
+/* Secondary button */
+.btn-secondary {
+  background-color: var(--theme-secondary) !important;
+  color: white !important;
+}
+.btn-secondary:hover:not(:disabled) {
+  background-color: var(--theme-secondary-dark) !important;
+}
+.btn-secondary:active:not(:disabled) {
+  background-color: var(--theme-secondary-darker) !important;
+}
+.btn-secondary:focus {
+  box-shadow: 0 0 0 2px white, 0 0 0 4px var(--theme-secondary);
+}
+
+/* Outline button */
+.btn-outline {
+  background-color: transparent !important;
+  color: var(--theme-primary) !important;
+  border: 2px solid var(--theme-primary) !important;
+}
+.btn-outline:hover:not(:disabled) {
+  background-color: var(--theme-primary-lighter) !important;
+}
+.btn-outline:active:not(:disabled) {
+  background-color: var(--theme-primary-light) !important;
+}
+.btn-outline:focus {
+  box-shadow: 0 0 0 2px white, 0 0 0 4px var(--theme-primary-light);
+}
+
+/* Ghost button */
+.btn-ghost {
+  background-color: transparent !important;
+  color: var(--theme-primary) !important;
+}
+.btn-ghost:hover:not(:disabled) {
+  background-color: var(--theme-primary-lighter) !important;
+}
+.btn-ghost:active:not(:disabled) {
+  background-color: var(--theme-primary-light) !important;
+}
+.btn-ghost:focus {
+  box-shadow: 0 0 0 2px white, 0 0 0 4px var(--theme-primary-light);
+}
+
+/* Danger button */
+.btn-danger {
+  background-color: #ef4444 !important;
+  color: white !important;
+}
+.btn-danger:hover:not(:disabled) {
+  background-color: #dc2626 !important;
+}
+.btn-danger:active:not(:disabled) {
+  background-color: #b91c1c !important;
+}
+.btn-danger:focus {
+  box-shadow: 0 0 0 2px white, 0 0 0 4px #ef4444;
 }

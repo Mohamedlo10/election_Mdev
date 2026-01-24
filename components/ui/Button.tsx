@@ -1,6 +1,6 @@
 'use client';
 
-import { ButtonHTMLAttributes, forwardRef } from 'react';
+import { ButtonHTMLAttributes, forwardRef, CSSProperties } from 'react';
 import { Loader2 } from 'lucide-react';
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
@@ -10,16 +10,8 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const Button = forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ className = '', variant = 'primary', size = 'md', loading, disabled, children, ...props }, ref) => {
+  ({ className = '', variant = 'primary', size = 'md', loading, disabled, children, style, ...props }, ref) => {
     const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed';
-
-    const variants = {
-      primary: 'bg-theme-primary text-white hover:bg-theme-primary-dark focus:ring-theme-primary active:bg-theme-primary-darker',
-      secondary: 'bg-theme-secondary text-white hover:bg-theme-secondary-dark focus:ring-theme-primary',
-      outline: 'border-2 border-theme-primary text-theme-primary hover:bg-theme-primary-lighter focus:ring-theme-primary-light',
-      ghost: 'text-theme-primary hover:bg-theme-primary-lighter focus:ring-theme-primary-light',
-      danger: 'bg-red-500 text-white hover:bg-red-600 focus:ring-red-500',
-    };
 
     const sizes = {
       sm: 'px-3 py-1.5 text-sm',
@@ -27,11 +19,45 @@ const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       lg: 'px-6 py-3 text-lg',
     };
 
+    // Styles inline pour les variantes (pour Tailwind CSS 4 compatibilité)
+    const variantStyles: Record<string, CSSProperties> = {
+      primary: {
+        backgroundColor: 'var(--theme-primary)',
+        color: 'white',
+      },
+      secondary: {
+        backgroundColor: 'var(--theme-secondary)',
+        color: 'white',
+      },
+      outline: {
+        backgroundColor: 'transparent',
+        color: 'var(--theme-primary)',
+        border: '2px solid var(--theme-primary)',
+      },
+      ghost: {
+        backgroundColor: 'transparent',
+        color: 'var(--theme-primary)',
+      },
+      danger: {
+        backgroundColor: '#ef4444',
+        color: 'white',
+      },
+    };
+
+    const variantClasses = {
+      primary: '',
+      secondary: '',
+      outline: '',
+      ghost: '',
+      danger: 'hover:bg-red-600 focus:ring-red-500',
+    };
+
     return (
       <button
         ref={ref}
-        className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${className}`}
+        className={`${baseStyles} ${sizes[size]} ${variantClasses[variant]} ${className} btn-${variant}`}
         disabled={disabled || loading}
+        style={{ ...variantStyles[variant], ...style }}
         {...props}
       >
         {loading && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}

@@ -14,6 +14,11 @@ interface InstanceContextType {
   setInstance: (instance: ElectionInstance) => void;
   clearInstance: () => void;
   refreshInstance: () => Promise<void>;
+  // Permission flags based on instance status
+  canModifyCategories: boolean;
+  canModifyCandidates: boolean;
+  canModifyVoters: boolean;
+  canAddVoters: boolean;
 }
 
 const defaultTheme: InstanceTheme = {
@@ -177,6 +182,9 @@ export function InstanceProvider({
     applyThemeToDocument(theme);
   }, [theme]);
 
+  // Permission flags based on instance status
+  const isDraft = currentInstance?.status === 'draft';
+
   const value: InstanceContextType = {
     currentInstance,
     instanceId,
@@ -187,6 +195,11 @@ export function InstanceProvider({
     setInstance,
     clearInstance,
     refreshInstance,
+    // Permissions: only modifiable when in draft status
+    canModifyCategories: isDraft ?? true,
+    canModifyCandidates: isDraft ?? true,
+    canModifyVoters: isDraft ?? true,
+    canAddVoters: true, // Always allowed
   };
 
   return (
