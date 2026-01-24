@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Vote, CheckCircle, User, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Vote, CheckCircle, User, AlertCircle, ChevronDown, ChevronUp, LogOut } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -30,8 +30,9 @@ interface CategoryCandidates {
 export default function InstanceVotePage() {
   const params = useParams();
   const instanceId = params.instanceId as string;
-  const { authUser } = useAuth();
+  const { authUser, signOut } = useAuth();
   const { currentInstance } = useInstance();
+  const isVoter = authUser?.role === 'voter';
 
   const [categories, setCategories] = useState<CategoryWithStatus[]>([]);
   const [categoryCandidates, setCategoryCandidates] = useState<CategoryCandidates>({});
@@ -137,9 +138,40 @@ export default function InstanceVotePage() {
   const totalCount = categories.length;
   const allVoted = completedCount === totalCount && totalCount > 0;
 
+  // Header pour les votants (utilise dans loading et error)
+  const VoterHeader = () => (
+    isVoter ? (
+      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-6">
+        <div className="max-w-6xl mx-auto flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div
+              className="w-10 h-10 rounded-lg flex items-center justify-center"
+              style={{ backgroundColor: 'var(--theme-primary)' }}
+            >
+              <Vote className="w-5 h-5 text-white" />
+            </div>
+            <div>
+              <h2 className="font-bold text-gray-900">{currentInstance?.name || 'Election'}</h2>
+              <p className="text-sm text-gray-500">{authUser?.email}</p>
+            </div>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => signOut()}
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Deconnexion
+          </Button>
+        </div>
+      </div>
+    ) : null
+  );
+
   if (loading) {
     return (
       <div className="space-y-6">
+        <VoterHeader />
         <div className="h-8 w-48 bg-gray-200 rounded animate-pulse" />
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
@@ -154,33 +186,39 @@ export default function InstanceVotePage() {
 
   if (error && currentInstance?.status !== 'active') {
     return (
-      <div className="flex items-center justify-center min-h-[60vh]">
-        <Card className="max-w-md w-full">
-          <CardContent className="text-center py-8">
-            <AlertCircle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
-            <h2 className="text-xl font-bold text-gray-900 mb-2">
-              Election non disponible
-            </h2>
-            <p className="text-gray-600">
-              {currentInstance?.status === 'draft' && 'Cette election n\'a pas encore demarre.'}
-              {currentInstance?.status === 'paused' && 'Cette election est actuellement en pause.'}
-              {currentInstance?.status === 'completed' && 'Cette election est terminee.'}
-              {currentInstance?.status === 'archived' && 'Cette election a ete archivee.'}
-            </p>
-          </CardContent>
-        </Card>
+      <div className="space-y-6">
+        <VoterHeader />
+        <div className="flex items-center justify-center min-h-[50vh]">
+          <Card className="max-w-md w-full">
+            <CardContent className="text-center py-8">
+              <AlertCircle className="w-16 h-16 text-yellow-500 mx-auto mb-4" />
+              <h2 className="text-xl font-bold text-gray-900 mb-2">
+                Election non disponible
+              </h2>
+              <p className="text-gray-600">
+                {currentInstance?.status === 'draft' && 'Cette election n\'a pas encore demarre.'}
+                {currentInstance?.status === 'paused' && 'Cette election est actuellement en pause.'}
+                {currentInstance?.status === 'completed' && 'Cette election est terminee.'}
+                {currentInstance?.status === 'archived' && 'Cette election a ete archivee.'}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     );
   }
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Header pour les votants */}
+      <VoterHeader />
+
+      {/* Titre et progression */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Voter</h1>
           <p className="text-sm sm:text-base text-gray-600 mt-1">
-            {currentInstance?.name} - {completedCount}/{totalCount} categories votees
+            {completedCount}/{totalCount} categories votees
           </p>
         </div>
         {allVoted && (

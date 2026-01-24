@@ -66,10 +66,13 @@ function InstanceLayoutContent({ children }: { children: ReactNode }) {
     );
   }
 
+  // Les votants n'ont pas besoin de la sidebar - ils voient uniquement la page de vote
+  const isVoter = authUser.role === 'voter';
+
   return (
     <div className="min-h-screen bg-gray-50">
-      <InstanceSidebar instanceId={instanceId} />
-      <main className="lg:ml-64 transition-all duration-300 p-4 sm:p-6 pt-16 lg:pt-6">
+      {!isVoter && <InstanceSidebar instanceId={instanceId} />}
+      <main className={`transition-all duration-300 p-4 sm:p-6 ${isVoter ? '' : 'lg:ml-64 pt-16 lg:pt-6'}`}>
         {children}
       </main>
     </div>

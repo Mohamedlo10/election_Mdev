@@ -19,8 +19,11 @@ export default function DashboardPage() {
     // Rediriger selon le role
     if (authUser.role === 'super_admin') {
       router.push('/super-admin');
+    } else if (authUser.role === 'voter' && authUser.instance_id) {
+      // voter -> directement vers la page de vote
+      router.push(`/instance/${authUser.instance_id}/vote`);
     } else if (authUser.instance_id) {
-      // admin, observer, voter -> vers leur instance
+      // admin, observer -> vers leur instance
       router.push(`/instance/${authUser.instance_id}`);
     } else if (authUser.role === 'admin') {
       // Admin sans instance -> page de creation d'instance
