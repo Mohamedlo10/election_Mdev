@@ -69,7 +69,7 @@ function InstanceLayoutContent({ children }: { children: ReactNode }) {
   return (
     <div className="min-h-screen bg-gray-50">
       <InstanceSidebar instanceId={instanceId} />
-      <main className="ml-64 transition-all duration-300 p-6">
+      <main className="lg:ml-64 transition-all duration-300 p-4 sm:p-6 pt-16 lg:pt-6">
         {children}
       </main>
     </div>

@@ -8,8 +8,11 @@ import {
   ChevronLeft,
   ChevronRight,
   ArrowLeft,
+  Menu,
+  X,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
+import { useEffect } from 'react';
 
 export interface NavItem {
   label: string;
@@ -25,6 +28,7 @@ interface SidebarHeaderProps {
   homeHref: string;
   logoColor?: string;
   instanceLogo?: string | null;
+  mobileOpen?: boolean;
 }
 
 export function SidebarHeader({
@@ -34,7 +38,10 @@ export function SidebarHeader({
   homeHref,
   logoColor = 'bg-theme-primary',
   instanceLogo,
+  mobileOpen,
 }: SidebarHeaderProps) {
+  const showFull = !collapsed || mobileOpen;
+
   return (
     <div className="flex items-center justify-between p-4 border-b border-gray-100">
       <Link href={homeHref} className="flex items-center gap-2">
@@ -49,7 +56,7 @@ export function SidebarHeader({
             <Vote className="w-6 h-6 text-white" />
           </div>
         )}
-        {!collapsed && (
+        {showFull && (
           <span className="text-xl font-bold text-gray-900 truncate max-w-[140px]">
             {title}
           </span>
@@ -76,6 +83,7 @@ interface SidebarNavProps {
   userRole?: string;
   basePath?: string;
   activeColor?: string;
+  mobileOpen?: boolean;
 }
 
 export function SidebarNav({
@@ -84,8 +92,10 @@ export function SidebarNav({
   userRole,
   basePath = '',
   activeColor = 'bg-theme-primary-lighter text-theme-primary border-l-4 border-theme-primary',
+  mobileOpen,
 }: SidebarNavProps) {
   const pathname = usePathname();
+  const showFull = !collapsed || mobileOpen;
 
   const filteredItems = items.filter(
     (item) => !item.roles || (userRole && item.roles.includes(userRole))
@@ -111,7 +121,7 @@ export function SidebarNav({
             `}
           >
             <item.icon className={`w-5 h-5 flex-shrink-0 ${isActive ? 'text-theme-primary' : ''}`} />
-            {!collapsed && <span className="font-medium">{item.label}</span>}
+            {showFull && <span className="font-medium">{item.label}</span>}
           </Link>
         );
       })}
@@ -121,10 +131,12 @@ export function SidebarNav({
 
 interface SidebarUserSectionProps {
   collapsed: boolean;
+  mobileOpen?: boolean;
 }
 
-export function SidebarUserSection({ collapsed }: SidebarUserSectionProps) {
+export function SidebarUserSection({ collapsed, mobileOpen }: SidebarUserSectionProps) {
   const { authUser, signOut } = useAuth();
+  const showFull = !collapsed || mobileOpen;
 
   const handleSignOut = async () => {
     await signOut();
@@ -133,13 +145,13 @@ export function SidebarUserSection({ collapsed }: SidebarUserSectionProps) {
 
   return (
     <div className="p-3 border-t border-gray-100">
-      <div className={`flex items-center gap-3 px-3 py-2 ${collapsed ? 'justify-center' : ''}`}>
+      <div className={`flex items-center gap-3 px-3 py-2 ${!showFull ? 'justify-center' : ''}`}>
         <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
           <span className="text-sm font-medium text-gray-600">
             {authUser?.email?.charAt(0).toUpperCase()}
           </span>
         </div>
-        {!collapsed && (
+        {showFull && (
           <div className="flex-1 min-w-0">
             <p className="text-sm font-medium text-gray-900 truncate">
               {authUser?.email}
@@ -155,11 +167,11 @@ export function SidebarUserSection({ collapsed }: SidebarUserSectionProps) {
         className={`
           flex items-center gap-3 w-full px-3 py-2.5 mt-2 rounded-lg
           text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors
-          ${collapsed ? 'justify-center' : ''}
+          ${!showFull ? 'justify-center' : ''}
         `}
       >
         <LogOut className="w-5 h-5 flex-shrink-0" />
-        {!collapsed && <span className="font-medium">Deconnexion</span>}
+        {showFull && <span className="font-medium">Deconnexion</span>}
       </button>
     </div>
   );
@@ -167,9 +179,12 @@ export function SidebarUserSection({ collapsed }: SidebarUserSectionProps) {
 
 interface ExitToSuperAdminProps {
   collapsed: boolean;
+  mobileOpen?: boolean;
 }
 
-export function ExitToSuperAdmin({ collapsed }: ExitToSuperAdminProps) {
+export function ExitToSuperAdmin({ collapsed, mobileOpen }: ExitToSuperAdminProps) {
+  const showFull = !collapsed || mobileOpen;
+
   return (
     <div className="p-3">
       <Link
@@ -178,11 +193,11 @@ export function ExitToSuperAdmin({ collapsed }: ExitToSuperAdminProps) {
           flex items-center gap-3 w-full px-3 py-2.5 rounded-lg
           text-gray-600 hover:bg-gray-100 hover:text-gray-900 transition-colors
           border border-gray-200
-          ${collapsed ? 'justify-center' : ''}
+          ${!showFull ? 'justify-center' : ''}
         `}
       >
         <ArrowLeft className="w-5 h-5 flex-shrink-0" />
-        {!collapsed && <span className="font-medium">Retour Super Admin</span>}
+        {showFull && <span className="font-medium">Retour Super Admin</span>}
       </Link>
     </div>
   );
@@ -190,22 +205,71 @@ export function ExitToSuperAdmin({ collapsed }: ExitToSuperAdminProps) {
 
 interface SidebarContainerProps {
   collapsed: boolean;
+  mobileOpen?: boolean;
+  onMobileClose?: () => void;
   children: React.ReactNode;
 }
 
-export function SidebarContainer({ collapsed, children }: SidebarContainerProps) {
+export function SidebarContainer({ collapsed, mobileOpen, onMobileClose, children }: SidebarContainerProps) {
+  const pathname = usePathname();
+
+  // Fermer le menu mobile lors du changement de route
+  useEffect(() => {
+    if (onMobileClose) {
+      onMobileClose();
+    }
+  }, [pathname]);
+
   return (
-    <aside
-      className={`
-        fixed left-0 top-0 h-full bg-white border-r border-gray-200
-        transition-all duration-300 z-40
-        ${collapsed ? 'w-16' : 'w-64'}
-        lg:translate-x-0
-      `}
+    <>
+      {/* Bouton hamburger pour mobile */}
+      <button
+        onClick={onMobileClose ? () => {} : undefined}
+        className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-md border border-gray-200 hover:bg-green-50 hover:border-green-500 text-gray-700 hover:text-green-600 transition-colors"
+        aria-label="Toggle menu"
+        style={{ display: 'none' }}
+      >
+        {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+      </button>
+
+      {/* Overlay pour mobile */}
+      {mobileOpen && (
+        <div
+          className="lg:hidden fixed inset-0 bg-black bg-opacity-50 z-40"
+          onClick={onMobileClose}
+        />
+      )}
+
+      <aside
+        className={`
+          fixed left-0 top-0 h-full bg-white border-r border-gray-200
+          transition-all duration-300 z-40
+          ${collapsed && !mobileOpen ? 'w-16' : 'w-64'}
+          ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
+        `}
+      >
+        <div className="flex flex-col h-full">
+          {children}
+        </div>
+      </aside>
+    </>
+  );
+}
+
+// Composant bouton hamburger exporté séparément
+interface MobileMenuButtonProps {
+  mobileOpen: boolean;
+  onToggle: () => void;
+}
+
+export function MobileMenuButton({ mobileOpen, onToggle }: MobileMenuButtonProps) {
+  return (
+    <button
+      onClick={onToggle}
+      className="lg:hidden fixed top-4 left-4 z-50 p-2 bg-white rounded-lg shadow-md border border-gray-200 hover:bg-green-50 hover:border-green-500 text-gray-700 hover:text-green-600 transition-colors"
+      aria-label="Toggle menu"
     >
-      <div className="flex flex-col h-full">
-        {children}
-      </div>
-    </aside>
+      {mobileOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+    </button>
   );
 }

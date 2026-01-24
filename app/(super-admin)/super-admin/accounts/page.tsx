@@ -257,12 +257,12 @@ export default function AccountsPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Gestion des comptes</h1>
-          <p className="text-gray-600 mt-1">Gerez les administrateurs et observateurs</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Gestion des comptes</h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">Gerez les administrateurs et observateurs</p>
         </div>
-        <Button onClick={() => setShowCreateModal(true)}>
+        <Button onClick={() => setShowCreateModal(true)} className="w-full sm:w-auto">
           <Plus className="w-4 h-4 mr-2" />
           Nouveau compte
         </Button>

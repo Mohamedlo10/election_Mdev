@@ -220,10 +220,10 @@ export default function InstanceVotersPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Votants</h1>
-          <p className="text-gray-600 mt-1">Gerez la liste des votants autorises</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Votants</h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">Gerez la liste des votants autorises</p>
         </div>
         <div className="flex items-center gap-2">
           <input
@@ -236,11 +236,13 @@ export default function InstanceVotersPage() {
           <Button
             variant="outline"
             onClick={() => fileInputRef.current?.click()}
+            className="flex-1 sm:flex-none"
           >
             <Upload className="w-4 h-4 mr-2" />
-            Importer
+            <span className="hidden sm:inline">Importer</span>
+            <span className="sm:hidden">Import</span>
           </Button>
-          <Button onClick={() => setShowCreateModal(true)}>
+          <Button onClick={() => setShowCreateModal(true)} className="flex-1 sm:flex-none">
             <Plus className="w-4 h-4 mr-2" />
             Ajouter
           </Button>

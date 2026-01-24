@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   FolderTree,
@@ -19,6 +20,7 @@ import {
   SidebarNav,
   SidebarUserSection,
   ExitToSuperAdmin,
+  MobileMenuButton,
   NavItem,
 } from './SidebarBase';
 
@@ -79,8 +81,15 @@ interface InstanceSidebarProps {
 
 export function InstanceSidebar({ instanceId }: InstanceSidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const { authUser } = useAuth();
   const { currentInstance } = useInstance();
+  const pathname = usePathname();
+
+  // Fermer le menu mobile lors du changement de route
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   const basePath = `/instance/${instanceId}`;
   const userRole = authUser?.role;
@@ -90,28 +99,40 @@ export function InstanceSidebar({ instanceId }: InstanceSidebarProps) {
   const instanceLogo = currentInstance?.logo_url;
 
   return (
-    <SidebarContainer collapsed={collapsed}>
-      <SidebarHeader
-        collapsed={collapsed}
-        onToggle={() => setCollapsed(!collapsed)}
-        title={instanceName}
-        homeHref={basePath}
-        logoColor="bg-theme-primary"
-        instanceLogo={instanceLogo}
+    <>
+      <MobileMenuButton
+        mobileOpen={mobileOpen}
+        onToggle={() => setMobileOpen(!mobileOpen)}
       />
-
-      <SidebarNav
-        items={navItems}
+      <SidebarContainer
         collapsed={collapsed}
-        userRole={userRole}
-        basePath={basePath}
-        activeColor="bg-theme-primary-light text-theme-primary"
-      />
+        mobileOpen={mobileOpen}
+        onMobileClose={() => setMobileOpen(false)}
+      >
+        <SidebarHeader
+          collapsed={collapsed}
+          mobileOpen={mobileOpen}
+          onToggle={() => setCollapsed(!collapsed)}
+          title={instanceName}
+          homeHref={basePath}
+          logoColor="bg-theme-primary"
+          instanceLogo={instanceLogo}
+        />
 
-      {isSuperAdmin && <ExitToSuperAdmin collapsed={collapsed} />}
+        <SidebarNav
+          items={navItems}
+          collapsed={collapsed}
+          mobileOpen={mobileOpen}
+          userRole={userRole}
+          basePath={basePath}
+          activeColor="bg-theme-primary-light text-theme-primary"
+        />
 
-      <SidebarUserSection collapsed={collapsed} />
-    </SidebarContainer>
+        {isSuperAdmin && <ExitToSuperAdmin collapsed={collapsed} mobileOpen={mobileOpen} />}
+
+        <SidebarUserSection collapsed={collapsed} mobileOpen={mobileOpen} />
+      </SidebarContainer>
+    </>
   );
 }
 

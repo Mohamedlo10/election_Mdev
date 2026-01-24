@@ -138,8 +138,8 @@ export default function InstanceSettingsPage() {
   return (
     <div className="space-y-6 max-w-3xl">
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Parametres</h1>
-        <p className="text-gray-600 mt-1">Gerez les parametres de votre instance d&apos;election</p>
+        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Parametres</h1>
+        <p className="text-sm sm:text-base text-gray-600 mt-1">Gerez les parametres de votre instance d&apos;election</p>
       </div>
 
       {error && (

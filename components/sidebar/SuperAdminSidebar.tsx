@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import { usePathname } from 'next/navigation';
 import {
   LayoutDashboard,
   Building2,
@@ -11,6 +12,7 @@ import {
   SidebarHeader,
   SidebarNav,
   SidebarUserSection,
+  MobileMenuButton,
   NavItem,
 } from './SidebarBase';
 
@@ -34,22 +36,41 @@ const superAdminNavItems: NavItem[] = [
 
 export default function SuperAdminSidebar() {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const pathname = usePathname();
+
+  // Fermer le menu mobile lors du changement de route
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   return (
-    <SidebarContainer collapsed={collapsed}>
-      <SidebarHeader
-        collapsed={collapsed}
-        onToggle={() => setCollapsed(!collapsed)}
-        title="MDev_Election"
-        homeHref="/super-admin"
-        logoColor="bg-green-500"
+    <>
+      <MobileMenuButton
+        mobileOpen={mobileOpen}
+        onToggle={() => setMobileOpen(!mobileOpen)}
       />
-      <SidebarNav
-        items={superAdminNavItems}
+      <SidebarContainer
         collapsed={collapsed}
-        activeColor="bg-green-50 text-green-700"
-      />
-      <SidebarUserSection collapsed={collapsed} />
-    </SidebarContainer>
+        mobileOpen={mobileOpen}
+        onMobileClose={() => setMobileOpen(false)}
+      >
+        <SidebarHeader
+          collapsed={collapsed}
+          mobileOpen={mobileOpen}
+          onToggle={() => setCollapsed(!collapsed)}
+          title="MDev_Election"
+          homeHref="/super-admin"
+          logoColor="bg-green-500"
+        />
+        <SidebarNav
+          items={superAdminNavItems}
+          collapsed={collapsed}
+          mobileOpen={mobileOpen}
+          activeColor="bg-green-50 text-green-700"
+        />
+        <SidebarUserSection collapsed={collapsed} mobileOpen={mobileOpen} />
+      </SidebarContainer>
+    </>
   );
 }
