@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Vote, CheckCircle, User, ChevronRight, AlertCircle } from 'lucide-react';
-import { Card, CardContent } from '@/components/ui/Card';
+import { Vote, CheckCircle, User, AlertCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
 import Alert from '@/components/ui/Alert';
@@ -23,6 +23,10 @@ interface CategoryWithStatus {
   votedCandidateId: string | null;
 }
 
+interface CategoryCandidates {
+  [categoryId: string]: Candidate[];
+}
+
 export default function InstanceVotePage() {
   const params = useParams();
   const instanceId = params.instanceId as string;
@@ -30,8 +34,9 @@ export default function InstanceVotePage() {
   const { currentInstance } = useInstance();
 
   const [categories, setCategories] = useState<CategoryWithStatus[]>([]);
+  const [categoryCandidates, setCategoryCandidates] = useState<CategoryCandidates>({});
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [selectedCategory, setSelectedCategory] = useState<CategoryWithStatus | null>(null);
-  const [candidates, setCandidates] = useState<Candidate[]>([]);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState(false);
@@ -63,26 +68,44 @@ export default function InstanceVotePage() {
 
     if (catResult.success && catResult.data) {
       setCategories(catResult.data);
+
+      // Charger les candidats pour toutes les categories
+      const allCandidates: CategoryCandidates = {};
+      const expanded = new Set<string>();
+
+      for (const cat of catResult.data) {
+        const candResult = await getCandidates(cat.id);
+        if (candResult.success && candResult.data) {
+          allCandidates[cat.id] = candResult.data;
+        }
+        // Ouvrir automatiquement les categories deja votees
+        if (cat.hasVoted) {
+          expanded.add(cat.id);
+        }
+      }
+
+      setCategoryCandidates(allCandidates);
+      setExpandedCategories(expanded);
     }
 
     setLoading(false);
   }
 
-  async function loadCandidates(categoryId: string) {
-    const result = await getCandidates(categoryId);
-    if (result.success && result.data) {
-      setCandidates(result.data);
-    }
+  function toggleCategory(categoryId: string) {
+    setExpandedCategories((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(categoryId)) {
+        newSet.delete(categoryId);
+      } else {
+        newSet.add(categoryId);
+      }
+      return newSet;
+    });
   }
 
-  function handleCategorySelect(category: CategoryWithStatus) {
+  function handleCandidateSelect(category: CategoryWithStatus, candidate: Candidate) {
     if (category.hasVoted) return;
     setSelectedCategory(category);
-    setSelectedCandidate(null);
-    loadCandidates(category.id);
-  }
-
-  function handleCandidateSelect(candidate: Candidate) {
     setSelectedCandidate(candidate);
     setShowConfirmModal(true);
   }
@@ -104,7 +127,6 @@ export default function InstanceVotePage() {
       loadData();
       setSelectedCategory(null);
       setSelectedCandidate(null);
-      setCandidates([]);
     } else {
       setError(result.error || 'Erreur lors du vote');
     }
@@ -119,10 +141,10 @@ export default function InstanceVotePage() {
     return (
       <div className="space-y-6">
         <div className="h-8 w-48 bg-gray-200 rounded animate-pulse" />
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {[1, 2, 3, 4].map((i) => (
+        <div className="space-y-4">
+          {[1, 2, 3].map((i) => (
             <Card key={i} className="animate-pulse">
-              <CardContent className="h-24 bg-gray-100" />
+              <CardContent className="h-32 bg-gray-100" />
             </Card>
           ))}
         </div>
@@ -181,7 +203,7 @@ export default function InstanceVotePage() {
               className="h-2 rounded-full transition-all duration-300"
               style={{
                 width: `${totalCount > 0 ? (completedCount / totalCount) * 100 : 0}%`,
-                backgroundColor: 'var(--theme-primary)'
+                backgroundColor: 'var(--theme-primary)',
               }}
             />
           </div>
@@ -195,133 +217,156 @@ export default function InstanceVotePage() {
         </Alert>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Categories */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">Categories</h2>
-          {categories.length === 0 ? (
-            <Card>
-              <CardContent className="text-center py-8">
-                <Vote className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">Aucune categorie disponible</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {categories.map((category) => (
-                <Card
-                  key={category.id}
-                  className={`cursor-pointer transition-all ${
-                    category.hasVoted
-                      ? 'opacity-60 cursor-default'
-                      : selectedCategory?.id === category.id
-                      ? 'ring-2 shadow-md'
-                      : 'hover:shadow-md'
+      {/* Categories avec candidats */}
+      <div className="space-y-4">
+        {categories.length === 0 ? (
+          <Card>
+            <CardContent className="text-center py-8">
+              <Vote className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+              <p className="text-gray-500">Aucune categorie disponible</p>
+            </CardContent>
+          </Card>
+        ) : (
+          categories.map((category) => {
+            const candidates = categoryCandidates[category.id] || [];
+            const isExpanded = expandedCategories.has(category.id);
+            const votedCandidate = candidates.find((c) => c.id === category.votedCandidateId);
+
+            return (
+              <Card key={category.id} className="overflow-hidden">
+                <CardHeader
+                  className={`cursor-pointer transition-colors ${
+                    category.hasVoted ? 'bg-green-50' : 'hover:bg-gray-50'
                   }`}
-                  style={selectedCategory?.id === category.id ? {
-                    boxShadow: `0 0 0 2px var(--theme-primary)`
-                  } : {}}
-                  onClick={() => handleCategorySelect(category)}
+                  onClick={() => toggleCategory(category.id)}
                 >
-                  <CardContent className="flex items-center justify-between py-4">
+                  <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div
                         className={`w-10 h-10 rounded-lg flex items-center justify-center ${
-                          category.hasVoted
-                            ? 'bg-green-100'
-                            : selectedCategory?.id === category.id
-                            ? ''
-                            : 'bg-gray-100'
+                          category.hasVoted ? 'bg-green-100' : 'bg-gray-100'
                         }`}
-                        style={selectedCategory?.id === category.id ? {
-                          backgroundColor: 'var(--theme-primary)'
-                        } : {}}
                       >
                         {category.hasVoted ? (
                           <CheckCircle className="w-5 h-5 text-green-600" />
                         ) : (
-                          <Vote
-                            className={`w-5 h-5 ${
-                              selectedCategory?.id === category.id
-                                ? 'text-white'
-                                : 'text-gray-400'
-                            }`}
-                          />
+                          <Vote className="w-5 h-5 text-gray-400" />
                         )}
                       </div>
                       <div>
-                        <h3 className="font-medium text-gray-900">{category.name}</h3>
+                        <CardTitle className="text-lg flex items-center gap-2">
+                          {category.name}
+                          {category.hasVoted && (
+                            <Badge variant="success" size="sm">Vote</Badge>
+                          )}
+                        </CardTitle>
                         {category.description && (
                           <p className="text-sm text-gray-500">{category.description}</p>
                         )}
+                        {category.hasVoted && votedCandidate && (
+                          <p className="text-sm text-green-600 mt-1">
+                            Vous avez vote pour : <span className="font-medium">{votedCandidate.full_name}</span>
+                          </p>
+                        )}
                       </div>
                     </div>
-                    {!category.hasVoted && (
-                      <ChevronRight className="w-5 h-5 text-gray-400" />
-                    )}
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Candidates */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {selectedCategory ? `Candidats - ${selectedCategory.name}` : 'Candidats'}
-          </h2>
-          {!selectedCategory ? (
-            <Card>
-              <CardContent className="text-center py-8">
-                <User className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">Selectionnez une categorie pour voir les candidats</p>
-              </CardContent>
-            </Card>
-          ) : candidates.length === 0 ? (
-            <Card>
-              <CardContent className="text-center py-8">
-                <User className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                <p className="text-gray-500">Aucun candidat dans cette categorie</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="space-y-3">
-              {candidates.map((candidate) => (
-                <Card
-                  key={candidate.id}
-                  className="cursor-pointer hover:shadow-md transition-all"
-                  onClick={() => handleCandidateSelect(candidate)}
-                >
-                  <CardContent className="flex items-center gap-4 py-4">
-                    {candidate.photo_url ? (
-                      <img
-                        src={candidate.photo_url}
-                        alt={candidate.full_name}
-                        className="w-14 h-14 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-14 h-14 bg-gray-100 rounded-full flex items-center justify-center">
-                        <User className="w-7 h-7 text-gray-400" />
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-900">{candidate.full_name}</h3>
-                      {candidate.description && (
-                        <p className="text-sm text-gray-500 line-clamp-2">
-                          {candidate.description}
-                        </p>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm text-gray-500">{candidates.length} candidat(s)</span>
+                      {isExpanded ? (
+                        <ChevronUp className="w-5 h-5 text-gray-400" />
+                      ) : (
+                        <ChevronDown className="w-5 h-5 text-gray-400" />
                       )}
                     </div>
-                    <Button size="sm">
-                      Voter
-                    </Button>
+                  </div>
+                </CardHeader>
+
+                {isExpanded && (
+                  <CardContent className="border-t border-gray-100">
+                    {candidates.length === 0 ? (
+                      <p className="text-center text-gray-500 py-4">Aucun candidat dans cette categorie</p>
+                    ) : (
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pt-4">
+                        {candidates.map((candidate) => {
+                          const isVotedFor = category.votedCandidateId === candidate.id;
+
+                          return (
+                            <div
+                              key={candidate.id}
+                              className={`relative p-4 rounded-lg border-2 transition-all ${
+                                isVotedFor
+                                  ? 'border-green-500 bg-green-50'
+                                  : category.hasVoted
+                                  ? 'border-gray-200 bg-gray-50 opacity-60'
+                                  : 'border-gray-200 hover:border-gray-300 hover:shadow-md cursor-pointer'
+                              }`}
+                              onClick={() => !category.hasVoted && handleCandidateSelect(category, candidate)}
+                            >
+                              {isVotedFor && (
+                                <div className="absolute -top-2 -right-2 w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
+                                  <CheckCircle className="w-4 h-4 text-white" />
+                                </div>
+                              )}
+
+                              <div className="flex items-center gap-3">
+                                {candidate.photo_url ? (
+                                  <img
+                                    src={candidate.photo_url}
+                                    alt={candidate.full_name}
+                                    className={`w-14 h-14 rounded-full object-cover ${
+                                      isVotedFor ? 'ring-2 ring-green-500' : ''
+                                    }`}
+                                  />
+                                ) : (
+                                  <div
+                                    className={`w-14 h-14 rounded-full flex items-center justify-center ${
+                                      isVotedFor ? 'bg-green-100 ring-2 ring-green-500' : 'bg-gray-100'
+                                    }`}
+                                  >
+                                    <User className={`w-7 h-7 ${isVotedFor ? 'text-green-600' : 'text-gray-400'}`} />
+                                  </div>
+                                )}
+                                <div className="flex-1 min-w-0">
+                                  <h4 className={`font-semibold truncate ${isVotedFor ? 'text-green-700' : 'text-gray-900'}`}>
+                                    {candidate.full_name}
+                                  </h4>
+                                  {candidate.description && (
+                                    <p className="text-sm text-gray-500 line-clamp-2">{candidate.description}</p>
+                                  )}
+                                </div>
+                              </div>
+
+                              {!category.hasVoted && (
+                                <Button
+                                  size="sm"
+                                  className="w-full mt-3"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    handleCandidateSelect(category, candidate);
+                                  }}
+                                >
+                                  Voter pour ce candidat
+                                </Button>
+                              )}
+
+                              {isVotedFor && (
+                                <div className="mt-3 text-center">
+                                  <span className="text-sm font-medium text-green-600">
+                                    Votre choix
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
+                )}
+              </Card>
+            );
+          })
+        )}
       </div>
 
       {/* Confirmation Modal */}
