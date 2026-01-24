@@ -229,7 +229,7 @@ export default function InstanceVotersPage() {
           <Lock className="w-4 h-4 mr-2 flex-shrink-0" />
           <span>
             L&apos;election est {currentInstance.status === 'active' ? 'active' : currentInstance.status === 'paused' ? 'en pause' : 'terminee'}.
-            Vous pouvez toujours ajouter de nouveaux votants, mais les informations existantes ne peuvent plus etre modifiees.
+            Les votants ne peuvent plus etre modifies.
           </span>
         </Alert>
       )}

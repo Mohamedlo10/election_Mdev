@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { Settings, Play, Pause, StopCircle, AlertTriangle, XCircle, CheckCircle } from 'lucide-react';
+import { Settings, Play, Pause, StopCircle, AlertTriangle, XCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -302,11 +302,7 @@ export default function InstanceSettingsPage() {
                   </li>
                   <li className="flex items-start gap-2">
                     <XCircle className="w-4 h-4 text-red-500 mt-0.5 flex-shrink-0" />
-                    <span>Les <strong>informations des votants</strong> ne peuvent plus etre modifiees</span>
-                  </li>
-                  <li className="flex items-start gap-2">
-                    <CheckCircle className="w-4 h-4 text-green-500 mt-0.5 flex-shrink-0" />
-                    <span>Vous pouvez toujours <strong>ajouter de nouveaux votants</strong></span>
+                    <span>Les <strong>votants</strong> ne peuvent plus etre modifies ni ajoutes</span>
                   </li>
                 </ul>
               </div>

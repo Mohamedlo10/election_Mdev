@@ -199,7 +199,7 @@ export function InstanceProvider({
     canModifyCategories: isDraft ?? true,
     canModifyCandidates: isDraft ?? true,
     canModifyVoters: isDraft ?? true,
-    canAddVoters: true, // Always allowed
+    canAddVoters: isDraft ?? true, // Only allowed in draft status
   };
 
   return (
