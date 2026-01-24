@@ -4,6 +4,7 @@ interface EmailOptions {
   to: string;
   subject: string;
   html: string;
+  fromName?: string;
 }
 
 // Créer le transporteur email
@@ -23,9 +24,15 @@ function createTransporter() {
 export async function sendEmail(options: EmailOptions): Promise<{ success: boolean; error?: string }> {
   try {
     const transporter = createTransporter();
+    const emailAddress = process.env.EMAIL_FROM || process.env.SMTP_USER;
+
+    // Format: "Nom Instance" <email@example.com> pour afficher le nom dans la boîte de réception
+    const from = options.fromName
+      ? `"${options.fromName}" <${emailAddress}>`
+      : emailAddress;
 
     await transporter.sendMail({
-      from: process.env.EMAIL_FROM || process.env.SMTP_USER,
+      from,
       to: options.to,
       subject: options.subject,
       html: options.html,
@@ -96,6 +103,7 @@ export async function sendCodeEmail(
     to,
     subject: `Votre code de connexion - ${instanceName}`,
     html,
+    fromName: instanceName,
   });
 }
 
@@ -196,5 +204,6 @@ export async function sendAccountInviteEmail(
     to,
     subject: `Votre compte ${roleLabel} - MDev_Election${instanceName ? ` - ${instanceName}` : ''}`,
     html,
+    fromName: instanceName || 'MDev_Election',
   });
 }

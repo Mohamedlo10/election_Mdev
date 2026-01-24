@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Vote, CheckCircle, User, ChevronRight, AlertCircle } from 'lucide-react';
+import { Vote, CheckCircle, User, ChevronRight, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -9,9 +9,9 @@ import Alert from '@/components/ui/Alert';
 import Badge from '@/components/ui/Badge';
 import { useAuth } from '@/hooks/useAuth';
 import { getCandidates } from '@/lib/services/candidate.service';
-import { createVote, getCategoriesWithVoteStatus } from '@/lib/services/vote.service';
+import { createVote, getCategoriesWithVoteStatus, getVoterVotes } from '@/lib/services/vote.service';
 import { getInstance } from '@/lib/services/election.service';
-import type { Candidate, ElectionInstance } from '@/types';
+import type { Candidate, ElectionInstance, VoteWithDetails } from '@/types';
 
 interface CategoryWithStatus {
   id: string;
@@ -34,6 +34,8 @@ export default function VotePage() {
   const [error, setError] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [myVotes, setMyVotes] = useState<VoteWithDetails[]>([]);
+  const [showMyVotes, setShowMyVotes] = useState(false);
 
   useEffect(() => {
     if (authUser?.instance_id && authUser?.voter?.id) {
@@ -65,6 +67,12 @@ export default function VotePage() {
 
     if (catResult.success && catResult.data) {
       setCategories(catResult.data);
+    }
+
+    // Charger les votes déjà effectués
+    const votesResult = await getVoterVotes(authUser!.voter!.id);
+    if (votesResult.success && votesResult.data) {
+      setMyVotes(votesResult.data);
     }
 
     setLoading(false);
@@ -164,12 +172,33 @@ export default function VotePage() {
             {instance?.name} - {completedCount}/{totalCount} catégories votées
           </p>
         </div>
-        {allVoted && (
-          <Badge variant="success" size="md">
-            <CheckCircle className="w-4 h-4 mr-1" />
-            Vote complet
-          </Badge>
-        )}
+        <div className="flex items-center gap-3">
+          {myVotes.length > 0 && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowMyVotes(!showMyVotes)}
+            >
+              {showMyVotes ? (
+                <>
+                  <EyeOff className="w-4 h-4 mr-2" />
+                  Masquer mes votes
+                </>
+              ) : (
+                <>
+                  <Eye className="w-4 h-4 mr-2" />
+                  Voir mes votes
+                </>
+              )}
+            </Button>
+          )}
+          {allVoted && (
+            <Badge variant="success" size="md">
+              <CheckCircle className="w-4 h-4 mr-1" />
+              Vote complet
+            </Badge>
+          )}
+        </div>
       </div>
 
       {/* Progress */}
@@ -193,6 +222,54 @@ export default function VotePage() {
           {error}
           <button onClick={() => setError('')} className="ml-2 underline">Fermer</button>
         </Alert>
+      )}
+
+      {/* Section Mes Votes */}
+      {showMyVotes && myVotes.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <CheckCircle className="w-5 h-5 text-green-600" />
+              Mes votes ({myVotes.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {myVotes.map((vote) => (
+                <div
+                  key={vote.id}
+                  className="p-4 bg-gray-50 rounded-lg border border-gray-100"
+                >
+                  <p className="text-sm text-gray-500 mb-2">{vote.category?.name}</p>
+                  <div className="flex items-center gap-3">
+                    {vote.candidate?.photo_url ? (
+                      <img
+                        src={vote.candidate.photo_url}
+                        alt={vote.candidate.full_name}
+                        className="w-10 h-10 rounded-full object-cover"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center">
+                        <User className="w-5 h-5 text-gray-400" />
+                      </div>
+                    )}
+                    <div>
+                      <p className="font-medium text-gray-900">{vote.candidate?.full_name}</p>
+                      <p className="text-xs text-gray-400">
+                        {new Date(vote.created_at).toLocaleDateString('fr-FR', {
+                          day: 'numeric',
+                          month: 'short',
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

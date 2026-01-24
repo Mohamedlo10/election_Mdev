@@ -63,7 +63,7 @@ export default function RegisterPage() {
               Instance : {instanceName}
             </p>
           )}
-          <Link href="/login">
+          <Link href={`/login?email=${encodeURIComponent(email)}`}>
             <Button className="w-full">
               Aller à la page de connexion
             </Button>
