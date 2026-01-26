@@ -84,10 +84,8 @@ export default function InstanceVotePage() {
         if (candResult.success && candResult.data) {
           allCandidates[cat.id] = candResult.data;
         }
-        // Ouvrir automatiquement les categories deja votees
-        if (cat.hasVoted) {
-          expanded.add(cat.id);
-        }
+        // Ouvrir toutes les categories par defaut
+        expanded.add(cat.id);
       }
 
       setCategoryCandidates(allCandidates);
