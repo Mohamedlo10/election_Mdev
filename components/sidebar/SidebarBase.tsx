@@ -140,7 +140,7 @@ export function SidebarUserSection({ collapsed, mobileOpen }: SidebarUserSection
 
   const handleSignOut = async () => {
     await signOut();
-    window.location.href = '/';
+    window.location.href = '/login';
   };
 
   return (

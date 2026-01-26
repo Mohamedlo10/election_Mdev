@@ -12,6 +12,7 @@ import {
   CheckCircle,
   XCircle,
   Search,
+  HelpCircle,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -32,6 +33,7 @@ import {
   getVotersStats,
 } from '@/lib/services/voter.service';
 import type { Voter, ElectionInstance, VoterImport } from '@/types';
+import ImportHelpModal from '@/components/ui/ImportHelpModal';
 
 export default function VotersPage() {
   const { authUser } = useAuth();
@@ -48,6 +50,7 @@ export default function VotersPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showHelpModal, setShowHelpModal] = useState(false);
   const [selectedVoter, setSelectedVoter] = useState<Voter | null>(null);
   const [actionMenuId, setActionMenuId] = useState<string | null>(null);
 
@@ -261,6 +264,14 @@ export default function VotersPage() {
             accept=".xlsx,.xls,.csv"
             className="hidden"
           />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setShowHelpModal(true)}
+            title="Aide à l'import"
+          >
+            <HelpCircle className="w-5 h-5" />
+          </Button>
           <Button
             variant="outline"
             onClick={() => fileInputRef.current?.click()}
@@ -590,10 +601,16 @@ export default function VotersPage() {
                 <p className="text-gray-600">
                   {importData.length} votant(s) trouvé(s) dans le fichier
                 </p>
-                <Button variant="ghost" size="sm" onClick={downloadTemplate}>
-                  <Download className="w-4 h-4 mr-2" />
-                  Télécharger le template
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setShowHelpModal(true)}>
+                    <HelpCircle className="w-4 h-4 mr-2" />
+                    Aide
+                  </Button>
+                  <Button variant="ghost" size="sm" onClick={downloadTemplate}>
+                    <Download className="w-4 h-4 mr-2" />
+                    Télécharger le template
+                  </Button>
+                </div>
               </div>
 
               {importData.length > 0 && (
@@ -649,6 +666,9 @@ export default function VotersPage() {
       {actionMenuId && (
         <div className="fixed inset-0 z-0" onClick={() => setActionMenuId(null)} />
       )}
+
+      {/* Help Modal */}
+      <ImportHelpModal isOpen={showHelpModal} onClose={() => setShowHelpModal(false)} />
     </div>
   );
 }

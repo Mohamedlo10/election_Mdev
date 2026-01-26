@@ -90,7 +90,7 @@ export default function Sidebar() {
 
   const handleSignOut = async () => {
     await signOut();
-    window.location.href = '/';
+    window.location.href = '/login';
   };
 
   // Fermer le menu mobile lors du changement de route

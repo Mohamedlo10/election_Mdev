@@ -56,11 +56,19 @@ function InstanceLayoutContent({ children }: { children: ReactNode }) {
     );
   }
 
+  // Rediriger vers login si non authentifié
+  useEffect(() => {
+    if (!authLoading && !authUser) {
+      router.push('/login');
+    }
+  }, [authLoading, authUser, router]);
+
   if (!authUser) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center">
-          <p className="text-gray-600">Non authentifie</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-theme-primary mx-auto"></div>
+          <p className="mt-4 text-gray-600">Redirection...</p>
         </div>
       </div>
     );

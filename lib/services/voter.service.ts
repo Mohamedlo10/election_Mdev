@@ -96,6 +96,84 @@ export async function deleteMultipleVoters(ids: string[]): Promise<ApiResponse<n
   return { data: null, error: null, success: true };
 }
 
+// Extraire le nom depuis un email (partie avant @)
+function extractNameFromEmail(email: string): string {
+  const localPart = email.split('@')[0] || '';
+  // Remplacer les points et underscores par des espaces, puis capitaliser
+  return localPart
+    .replace(/[._-]/g, ' ')
+    .split(' ')
+    .map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(' ');
+}
+
+// Détecter le format du fichier et parser en conséquence
+function parseRowData(row: unknown[]): { full_name: string; email: string } | null {
+  const colCount = row.filter(cell => cell !== null && cell !== undefined && String(cell).trim() !== '').length;
+
+  if (colCount === 0) return null;
+
+  // Cas 1: Une seule colonne (email uniquement)
+  // Format: email
+  if (colCount === 1) {
+    const email = String(row[0] || '').trim().toLowerCase();
+    if (!email.includes('@')) return null;
+    return {
+      full_name: extractNameFromEmail(email),
+      email,
+    };
+  }
+
+  // Cas 2: Deux colonnes (nom, email)
+  // Format: full_name, email
+  if (colCount === 2) {
+    const col0 = String(row[0] || '').trim();
+    const col1 = String(row[1] || '').trim().toLowerCase();
+
+    // Vérifier si col1 est un email
+    if (col1.includes('@')) {
+      return {
+        full_name: col0,
+        email: col1,
+      };
+    }
+    // Sinon, vérifier si col0 est un email (format inversé)
+    if (col0.toLowerCase().includes('@')) {
+      return {
+        full_name: col1,
+        email: col0.toLowerCase(),
+      };
+    }
+    return null;
+  }
+
+  // Cas 3: Trois colonnes ou plus (prénom, nom, email)
+  // Format: first_name, last_name, email
+  if (colCount >= 3) {
+    const col0 = String(row[0] || '').trim();
+    const col1 = String(row[1] || '').trim();
+    const col2 = String(row[2] || '').trim().toLowerCase();
+
+    // Vérifier si col2 est un email
+    if (col2.includes('@')) {
+      return {
+        full_name: `${col0} ${col1}`.trim(),
+        email: col2,
+      };
+    }
+    // Sinon, essayer le format à 2 colonnes avec les deux premières
+    if (col1.toLowerCase().includes('@')) {
+      return {
+        full_name: col0,
+        email: col1.toLowerCase(),
+      };
+    }
+    return null;
+  }
+
+  return null;
+}
+
 // Parse Excel file
 export function parseExcelFile(file: File): Promise<VoterImport[]> {
   return new Promise((resolve, reject) => {
@@ -107,18 +185,15 @@ export function parseExcelFile(file: File): Promise<VoterImport[]> {
         const workbook = XLSX.read(data, { type: 'binary' });
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
-        
+
         // Convertir en tableau de tableaux pour prendre les colonnes par position
         const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 }) as unknown[][];
-        
-        // Ignorer la première ligne (en-têtes) et mapper les colonnes par position
+
+        // Ignorer la première ligne (en-têtes) et parser chaque ligne
         const voters: VoterImport[] = jsonData
           .slice(1) // Ignorer les en-têtes
-          .map((row) => ({
-            full_name: String(row[0] || '').trim(),
-            email: String(row[1] || '').trim().toLowerCase(),
-          }))
-          .filter((v) => v.full_name && v.email);
+          .map((row) => parseRowData(row))
+          .filter((v): v is VoterImport => v !== null && v.full_name !== '' && v.email !== '');
 
         resolve(voters);
       } catch {
