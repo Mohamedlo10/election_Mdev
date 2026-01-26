@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Vote, Mail, Lock } from 'lucide-react';
@@ -10,7 +10,7 @@ import Input from '@/components/ui/Input';
 import Alert from '@/components/ui/Alert';
 import { useAuth } from '@/hooks/useAuth';
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const { signIn } = useAuth();
@@ -161,5 +161,13 @@ export default function LoginPage() {
         </Link>
       </CardFooter>
     </Card>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex justify-center items-center min-h-[200px]">Chargement...</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

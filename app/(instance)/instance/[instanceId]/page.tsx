@@ -244,19 +244,19 @@ export default function InstanceDashboardPage() {
                   {new Date(currentInstance.created_at).toLocaleDateString('fr-FR')}
                 </dd>
               </div>
-              {currentInstance.start_date && (
+              {currentInstance.started_at && (
                 <div>
                   <dt className="text-sm text-gray-500">Date de debut</dt>
                   <dd className="font-medium text-gray-900">
-                    {new Date(currentInstance.start_date).toLocaleDateString('fr-FR')}
+                    {new Date(currentInstance.started_at).toLocaleDateString('fr-FR')}
                   </dd>
                 </div>
               )}
-              {currentInstance.end_date && (
+              {currentInstance.ended_at && (
                 <div>
                   <dt className="text-sm text-gray-500">Date de fin</dt>
                   <dd className="font-medium text-gray-900">
-                    {new Date(currentInstance.end_date).toLocaleDateString('fr-FR')}
+                    {new Date(currentInstance.ended_at).toLocaleDateString('fr-FR')}
                   </dd>
                 </div>
               )}
