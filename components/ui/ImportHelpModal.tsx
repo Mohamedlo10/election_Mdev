@@ -11,7 +11,7 @@ interface ImportHelpModalProps {
 export default function ImportHelpModal({ isOpen, onClose }: ImportHelpModalProps) {
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Guide d'import des votants" size="lg">
-      <div className="space-y-6">
+      <div className="space-y-6 h-[80vh] overflow-y-auto px-2 pb-4">
         {/* Introduction */}
         <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
           <div className="flex items-start gap-3">
