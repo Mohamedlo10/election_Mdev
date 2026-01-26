@@ -1,11 +1,10 @@
 'use client';
 
-import { ReactNode, useState, useEffect } from 'react';
+import { ReactNode, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { InstanceProvider, useInstance } from '@/contexts/InstanceContext';
 import { InstanceSidebar } from '@/components/sidebar/InstanceSidebar';
-import { createClient } from '@/lib/supabase/client';
 
 function InstanceLayoutContent({ children }: { children: ReactNode }) {
   const params = useParams();
@@ -14,6 +13,13 @@ function InstanceLayoutContent({ children }: { children: ReactNode }) {
   const { loading: instanceLoading, error: instanceError, currentInstance } = useInstance();
 
   const instanceId = params.instanceId as string;
+
+  // Rediriger vers login si non authentifié
+  useEffect(() => {
+    if (!authLoading && !authUser) {
+      router.push('/login');
+    }
+  }, [authLoading, authUser, router]);
 
   // Verifier l'acces a l'instance
   useEffect(() => {
@@ -55,13 +61,6 @@ function InstanceLayoutContent({ children }: { children: ReactNode }) {
       </div>
     );
   }
-
-  // Rediriger vers login si non authentifié
-  useEffect(() => {
-    if (!authLoading && !authUser) {
-      router.push('/login');
-    }
-  }, [authLoading, authUser, router]);
 
   if (!authUser) {
     return (
