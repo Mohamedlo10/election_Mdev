@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Plus, Users, MoreVertical, Edit, Trash2, User, FileText, Lock } from 'lucide-react';
+import { Plus, Users, Lock } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -10,13 +10,15 @@ import Textarea from '@/components/ui/Textarea';
 import Select from '@/components/ui/Select';
 import Modal from '@/components/ui/Modal';
 import Alert from '@/components/ui/Alert';
-import Badge from '@/components/ui/Badge';
+import ImageUpload from '@/components/ui/ImageUpload';
+import CandidateCard from '@/components/ui/CandidateCard';
 import { getCategories } from '@/lib/services/category.service';
 import {
   getCandidates,
   createCandidate,
   updateCandidate,
   deleteCandidate,
+  uploadCandidatePhoto,
 } from '@/lib/services/candidate.service';
 import { useInstance } from '@/contexts/InstanceContext';
 import type { Candidate, Category, CreateCandidate } from '@/types';
@@ -43,6 +45,8 @@ export default function InstanceCandidatesPage() {
     description: '',
     category_id: '',
   });
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [currentPhotoUrl, setCurrentPhotoUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -94,9 +98,17 @@ export default function InstanceCandidatesPage() {
 
     const result = await createCandidate(candidateData);
 
-    if (result.success) {
+    if (result.success && result.data) {
+      // Upload photo if selected
+      if (photoFile) {
+        const photoResult = await uploadCandidatePhoto(photoFile, result.data.id);
+        if (photoResult.success && photoResult.data) {
+          await updateCandidate(result.data.id, { photo_url: photoResult.data });
+        }
+      }
       setShowCreateModal(false);
       setFormData({ full_name: '', description: '', category_id: '' });
+      setPhotoFile(null);
       loadCandidates();
     } else {
       setError(result.error || 'Erreur lors de la creation');
@@ -108,14 +120,27 @@ export default function InstanceCandidatesPage() {
     if (!selectedCandidate || !formData.full_name.trim()) return;
 
     setSubmitting(true);
+
+    // Upload new photo if selected
+    let photoUrl = currentPhotoUrl;
+    if (photoFile) {
+      const photoResult = await uploadCandidatePhoto(photoFile, selectedCandidate.id);
+      if (photoResult.success && photoResult.data) {
+        photoUrl = photoResult.data;
+      }
+    }
+
     const result = await updateCandidate(selectedCandidate.id, {
       full_name: formData.full_name,
       description: formData.description || null,
+      photo_url: photoUrl,
     });
 
     if (result.success) {
       setShowEditModal(false);
       setSelectedCandidate(null);
+      setPhotoFile(null);
+      setCurrentPhotoUrl(null);
       loadCandidates();
     } else {
       setError(result.error || 'Erreur lors de la mise a jour');
@@ -141,6 +166,8 @@ export default function InstanceCandidatesPage() {
 
   function openCreateModal() {
     setFormData({ full_name: '', description: '', category_id: selectedCategoryId });
+    setPhotoFile(null);
+    setCurrentPhotoUrl(null);
     setShowCreateModal(true);
   }
 
@@ -151,6 +178,8 @@ export default function InstanceCandidatesPage() {
       description: candidate.description || '',
       category_id: candidate.category_id,
     });
+    setPhotoFile(null);
+    setCurrentPhotoUrl(candidate.photo_url);
     setShowEditModal(true);
     setActionMenuId(null);
   }
@@ -253,90 +282,18 @@ export default function InstanceCandidatesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {candidates.map((candidate) => (
-            <Card key={candidate.id} className="hover:shadow-md transition-shadow">
-              <CardContent>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    {candidate.photo_url ? (
-                      <img
-                        src={candidate.photo_url}
-                        alt={candidate.full_name}
-                        className="w-12 h-12 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
-                        <User className="w-6 h-6 text-gray-400" />
-                      </div>
-                    )}
-                    <div>
-                      <h3 className="font-semibold text-gray-900">{candidate.full_name}</h3>
-                      <Badge size="sm">
-                        {categories.find((c) => c.id === candidate.category_id)?.name}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div className="relative">
-                    <button
-                      onClick={() => setActionMenuId(actionMenuId === candidate.id ? null : candidate.id)}
-                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"
-                    >
-                      <MoreVertical className="w-5 h-5" />
-                    </button>
-
-                    {actionMenuId === candidate.id && (
-                      <div className="absolute right-0 top-8 w-40 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-10">
-                        <button
-                          onClick={() => canModifyCandidates && openEditModal(candidate)}
-                          disabled={!canModifyCandidates}
-                          className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
-                            canModifyCandidates
-                              ? 'text-gray-700 hover:bg-gray-50'
-                              : 'text-gray-400 cursor-not-allowed'
-                          }`}
-                        >
-                          {canModifyCandidates ? <Edit className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-                          Modifier
-                        </button>
-                        <button
-                          onClick={() => canModifyCandidates && openDeleteModal(candidate)}
-                          disabled={!canModifyCandidates}
-                          className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
-                            canModifyCandidates
-                              ? 'text-red-600 hover:bg-red-50'
-                              : 'text-gray-400 cursor-not-allowed'
-                          }`}
-                        >
-                          {canModifyCandidates ? <Trash2 className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-                          Supprimer
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {candidate.description && (
-                  <p className="text-sm text-gray-500 mt-3 line-clamp-2">
-                    {candidate.description}
-                  </p>
-                )}
-
-                {candidate.program_url && (
-                  <a
-                    href={candidate.program_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm hover:underline mt-3"
-                    style={{ color: 'var(--theme-primary)' }}
-                  >
-                    <FileText className="w-4 h-4" />
-                    Voir le programme
-                  </a>
-                )}
-              </CardContent>
-            </Card>
+            <CandidateCard
+              key={candidate.id}
+              candidate={candidate}
+              categoryName={categories.find((c) => c.id === candidate.category_id)?.name}
+              canModify={canModifyCandidates}
+              isMenuOpen={actionMenuId === candidate.id}
+              onMenuToggle={() => setActionMenuId(actionMenuId === candidate.id ? null : candidate.id)}
+              onEdit={() => openEditModal(candidate)}
+              onDelete={() => openDeleteModal(candidate)}
+            />
           ))}
         </div>
       )}
@@ -348,6 +305,13 @@ export default function InstanceCandidatesPage() {
         title="Nouveau candidat"
       >
         <div className="space-y-4">
+          <ImageUpload
+            label="Photo du candidat"
+            onImageSelect={(file) => setPhotoFile(file)}
+            onImageRemove={() => setPhotoFile(null)}
+            shape="circle"
+            size="lg"
+          />
           <Input
             label="Nom complet"
             placeholder="Ex: Jean Dupont"
@@ -385,6 +349,17 @@ export default function InstanceCandidatesPage() {
         title="Modifier le candidat"
       >
         <div className="space-y-4">
+          <ImageUpload
+            label="Photo du candidat"
+            currentImageUrl={currentPhotoUrl}
+            onImageSelect={(file) => setPhotoFile(file)}
+            onImageRemove={() => {
+              setPhotoFile(null);
+              setCurrentPhotoUrl(null);
+            }}
+            shape="circle"
+            size="lg"
+          />
           <Input
             label="Nom complet"
             value={formData.full_name}

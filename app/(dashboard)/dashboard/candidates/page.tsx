@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { Plus, Users, MoreVertical, Edit, Trash2, User, FileText } from 'lucide-react';
+import { Plus, Users } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -9,7 +9,8 @@ import Textarea from '@/components/ui/Textarea';
 import Select from '@/components/ui/Select';
 import Modal from '@/components/ui/Modal';
 import Alert from '@/components/ui/Alert';
-import Badge from '@/components/ui/Badge';
+import ImageUpload from '@/components/ui/ImageUpload';
+import CandidateCard from '@/components/ui/CandidateCard';
 import { useAuth } from '@/hooks/useAuth';
 import { getAllInstances } from '@/lib/services/election.service';
 import { getCategories } from '@/lib/services/category.service';
@@ -18,6 +19,7 @@ import {
   createCandidate,
   updateCandidate,
   deleteCandidate,
+  uploadCandidatePhoto,
 } from '@/lib/services/candidate.service';
 import type { Candidate, Category, ElectionInstance, CreateCandidate } from '@/types';
 
@@ -42,6 +44,8 @@ export default function CandidatesPage() {
     description: '',
     category_id: '',
   });
+  const [photoFile, setPhotoFile] = useState<File | null>(null);
+  const [currentPhotoUrl, setCurrentPhotoUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -115,9 +119,17 @@ export default function CandidatesPage() {
 
     const result = await createCandidate(candidateData);
 
-    if (result.success) {
+    if (result.success && result.data) {
+      // Upload photo if selected
+      if (photoFile) {
+        const photoResult = await uploadCandidatePhoto(photoFile, result.data.id);
+        if (photoResult.success && photoResult.data) {
+          await updateCandidate(result.data.id, { photo_url: photoResult.data });
+        }
+      }
       setShowCreateModal(false);
       setFormData({ full_name: '', description: '', category_id: '' });
+      setPhotoFile(null);
       loadCandidates();
     } else {
       setError(result.error || 'Erreur lors de la création');
@@ -129,14 +141,27 @@ export default function CandidatesPage() {
     if (!selectedCandidate || !formData.full_name.trim()) return;
 
     setSubmitting(true);
+
+    // Upload new photo if selected
+    let photoUrl = currentPhotoUrl;
+    if (photoFile) {
+      const photoResult = await uploadCandidatePhoto(photoFile, selectedCandidate.id);
+      if (photoResult.success && photoResult.data) {
+        photoUrl = photoResult.data;
+      }
+    }
+
     const result = await updateCandidate(selectedCandidate.id, {
       full_name: formData.full_name,
       description: formData.description || null,
+      photo_url: photoUrl,
     });
 
     if (result.success) {
       setShowEditModal(false);
       setSelectedCandidate(null);
+      setPhotoFile(null);
+      setCurrentPhotoUrl(null);
       loadCandidates();
     } else {
       setError(result.error || 'Erreur lors de la mise à jour');
@@ -162,6 +187,8 @@ export default function CandidatesPage() {
 
   function openCreateModal() {
     setFormData({ full_name: '', description: '', category_id: selectedCategoryId });
+    setPhotoFile(null);
+    setCurrentPhotoUrl(null);
     setShowCreateModal(true);
   }
 
@@ -172,6 +199,8 @@ export default function CandidatesPage() {
       description: candidate.description || '',
       category_id: candidate.category_id,
     });
+    setPhotoFile(null);
+    setCurrentPhotoUrl(candidate.photo_url);
     setShowEditModal(true);
     setActionMenuId(null);
   }
@@ -269,79 +298,17 @@ export default function CandidatesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {candidates.map((candidate) => (
-            <Card key={candidate.id} className="hover:shadow-md transition-shadow">
-              <CardContent>
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-3">
-                    {candidate.photo_url ? (
-                      <img
-                        src={candidate.photo_url}
-                        alt={candidate.full_name}
-                        className="w-12 h-12 rounded-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
-                        <User className="w-6 h-6 text-gray-400" />
-                      </div>
-                    )}
-                    <div>
-                      <h3 className="font-semibold text-gray-900">{candidate.full_name}</h3>
-                      <Badge size="sm">
-                        {categories.find((c) => c.id === candidate.category_id)?.name}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div className="relative">
-                    <button
-                      onClick={() => setActionMenuId(actionMenuId === candidate.id ? null : candidate.id)}
-                      className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"
-                    >
-                      <MoreVertical className="w-5 h-5" />
-                    </button>
-
-                    {actionMenuId === candidate.id && (
-                      <div className="absolute right-0 top-8 w-40 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-10">
-                        <button
-                          onClick={() => openEditModal(candidate)}
-                          className="flex items-center gap-2 w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
-                        >
-                          <Edit className="w-4 h-4" />
-                          Modifier
-                        </button>
-                        <button
-                          onClick={() => openDeleteModal(candidate)}
-                          className="flex items-center gap-2 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                          Supprimer
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {candidate.description && (
-                  <p className="text-sm text-gray-500 mt-3 line-clamp-2">
-                    {candidate.description}
-                  </p>
-                )}
-
-                {candidate.program_url && (
-                  <a
-                    href={candidate.program_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1 text-sm text-green-600 hover:text-green-700 mt-3"
-                  >
-                    <FileText className="w-4 h-4" />
-                    Voir le programme
-                  </a>
-                )}
-              </CardContent>
-            </Card>
+            <CandidateCard
+              key={candidate.id}
+              candidate={candidate}
+              categoryName={categories.find((c) => c.id === candidate.category_id)?.name}
+              isMenuOpen={actionMenuId === candidate.id}
+              onMenuToggle={() => setActionMenuId(actionMenuId === candidate.id ? null : candidate.id)}
+              onEdit={() => openEditModal(candidate)}
+              onDelete={() => openDeleteModal(candidate)}
+            />
           ))}
         </div>
       )}
@@ -353,6 +320,13 @@ export default function CandidatesPage() {
         title="Nouveau candidat"
       >
         <div className="space-y-4">
+          <ImageUpload
+            label="Photo du candidat"
+            onImageSelect={(file) => setPhotoFile(file)}
+            onImageRemove={() => setPhotoFile(null)}
+            shape="circle"
+            size="lg"
+          />
           <Input
             label="Nom complet"
             placeholder="Ex: Jean Dupont"
@@ -390,6 +364,17 @@ export default function CandidatesPage() {
         title="Modifier le candidat"
       >
         <div className="space-y-4">
+          <ImageUpload
+            label="Photo du candidat"
+            currentImageUrl={currentPhotoUrl}
+            onImageSelect={(file) => setPhotoFile(file)}
+            onImageRemove={() => {
+              setPhotoFile(null);
+              setCurrentPhotoUrl(null);
+            }}
+            shape="circle"
+            size="lg"
+          />
           <Input
             label="Nom complet"
             value={formData.full_name}

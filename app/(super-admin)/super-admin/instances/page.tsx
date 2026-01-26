@@ -22,6 +22,7 @@ import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
 import Badge from '@/components/ui/Badge';
 import Alert from '@/components/ui/Alert';
+import ImageUpload from '@/components/ui/ImageUpload';
 import {
   getAllInstances,
   createInstance,
@@ -31,6 +32,7 @@ import {
   pauseElection,
   endElection,
   archiveElection,
+  uploadLogo,
 } from '@/lib/services/election.service';
 import { createClient } from '@/lib/supabase/client';
 import type { ElectionInstance, CreateElectionInstance, ElectionStatus } from '@/types';
@@ -71,6 +73,8 @@ export default function SuperAdminInstancesPage() {
     secondary_color: '#1f2937',
     accent_color: '#eab308',
   });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [currentLogoUrl, setCurrentLogoUrl] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -118,9 +122,17 @@ export default function SuperAdminInstancesPage() {
     setSubmitting(true);
     const result = await createInstance(formData);
 
-    if (result.success) {
+    if (result.success && result.data) {
+      // Upload logo if selected
+      if (logoFile) {
+        const logoResult = await uploadLogo(logoFile, result.data.id);
+        if (logoResult.success && logoResult.data) {
+          await updateInstance(result.data.id, { logo_url: logoResult.data });
+        }
+      }
       setShowCreateModal(false);
       setFormData({ name: '', primary_color: '#22c55e', secondary_color: '#1f2937', accent_color: '#eab308' });
+      setLogoFile(null);
       loadInstances();
     } else {
       setError(result.error || 'Erreur lors de la creation');
@@ -132,11 +144,26 @@ export default function SuperAdminInstancesPage() {
     if (!selectedInstance || !formData.name.trim()) return;
 
     setSubmitting(true);
-    const result = await updateInstance(selectedInstance.id, formData);
+
+    // Upload new logo if selected
+    let logoUrl = currentLogoUrl;
+    if (logoFile) {
+      const logoResult = await uploadLogo(logoFile, selectedInstance.id);
+      if (logoResult.success && logoResult.data) {
+        logoUrl = logoResult.data;
+      }
+    }
+
+    const result = await updateInstance(selectedInstance.id, {
+      ...formData,
+      logo_url: logoUrl,
+    });
 
     if (result.success) {
       setShowEditModal(false);
       setSelectedInstance(null);
+      setLogoFile(null);
+      setCurrentLogoUrl(null);
       loadInstances();
     } else {
       setError(result.error || 'Erreur lors de la mise a jour');
@@ -194,6 +221,8 @@ export default function SuperAdminInstancesPage() {
       secondary_color: instance.secondary_color,
       accent_color: instance.accent_color,
     });
+    setLogoFile(null);
+    setCurrentLogoUrl(instance.logo_url);
     setShowEditModal(true);
     setActionMenuId(null);
   }
@@ -403,6 +432,14 @@ export default function SuperAdminInstancesPage() {
         title="Nouvelle instance d'election"
       >
         <div className="space-y-4">
+          <ImageUpload
+            label="Logo de l'instance"
+            onImageSelect={(file) => setLogoFile(file)}
+            onImageRemove={() => setLogoFile(null)}
+            shape="square"
+            size="lg"
+            fallbackIcon="image"
+          />
           <Input
             label="Nom de l'instance"
             placeholder="Ex: Election presidentielle 2024"
@@ -464,6 +501,18 @@ export default function SuperAdminInstancesPage() {
         title="Modifier l'instance"
       >
         <div className="space-y-4">
+          <ImageUpload
+            label="Logo de l'instance"
+            currentImageUrl={currentLogoUrl}
+            onImageSelect={(file) => setLogoFile(file)}
+            onImageRemove={() => {
+              setLogoFile(null);
+              setCurrentLogoUrl(null);
+            }}
+            shape="square"
+            size="lg"
+            fallbackIcon="image"
+          />
           <Input
             label="Nom de l'instance"
             value={formData.name}

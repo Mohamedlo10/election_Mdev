@@ -9,12 +9,14 @@ import Input from '@/components/ui/Input';
 import Modal from '@/components/ui/Modal';
 import Alert from '@/components/ui/Alert';
 import Badge from '@/components/ui/Badge';
+import ImageUpload from '@/components/ui/ImageUpload';
 import { useInstance } from '@/contexts/InstanceContext';
 import {
   updateInstance,
   startElection,
   pauseElection,
   endElection,
+  uploadLogo,
 } from '@/lib/services/election.service';
 import type { ElectionStatus } from '@/types';
 
@@ -37,6 +39,8 @@ export default function InstanceSettingsPage() {
     secondary_color: '#1f2937',
     accent_color: '#eab308',
   });
+  const [logoFile, setLogoFile] = useState<File | null>(null);
+  const [currentLogoUrl, setCurrentLogoUrl] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -52,6 +56,7 @@ export default function InstanceSettingsPage() {
         secondary_color: currentInstance.secondary_color || '#1f2937',
         accent_color: currentInstance.accent_color || '#eab308',
       });
+      setCurrentLogoUrl(currentInstance.logo_url);
     }
   }, [currentInstance]);
 
@@ -62,10 +67,23 @@ export default function InstanceSettingsPage() {
     setError('');
     setSuccess('');
 
-    const result = await updateInstance(instanceId, formData);
+    // Upload new logo if selected
+    let logoUrl = currentLogoUrl;
+    if (logoFile) {
+      const logoResult = await uploadLogo(logoFile, instanceId);
+      if (logoResult.success && logoResult.data) {
+        logoUrl = logoResult.data;
+      }
+    }
+
+    const result = await updateInstance(instanceId, {
+      ...formData,
+      logo_url: logoUrl,
+    });
 
     if (result.success) {
       await refreshInstance();
+      setLogoFile(null);
       setSuccess('Parametres enregistres avec succes');
     } else {
       setError(result.error || 'Erreur lors de la sauvegarde');
@@ -213,6 +231,18 @@ export default function InstanceSettingsPage() {
           <CardDescription>Modifiez les informations de base de l&apos;election</CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          <ImageUpload
+            label="Logo de l'election"
+            currentImageUrl={currentLogoUrl}
+            onImageSelect={(file) => setLogoFile(file)}
+            onImageRemove={() => {
+              setLogoFile(null);
+              setCurrentLogoUrl(null);
+            }}
+            shape="square"
+            size="lg"
+            fallbackIcon="image"
+          />
           <Input
             label="Nom de l'election"
             value={formData.name}
