@@ -157,39 +157,64 @@ export default function InstanceResultsPage() {
                 ) : (
                   <div className="space-y-4">
                     {categoryResult.candidates.map((candidateResult, index) => (
-                      <div key={candidateResult.candidate.id} className="space-y-2">
-                        <div className="flex items-center justify-between">
+                      <div key={candidateResult.candidate.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-4">
                           <div className="flex items-center gap-3">
-                            <span
-                              className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-bold ${
-                                index === 0 && candidateResult.votes_count > 0
-                                  ? 'bg-yellow-100 text-yellow-700'
-                                  : 'bg-gray-100 text-gray-500'
-                              }`}
-                            >
-                              {index + 1}
-                            </span>
-                            <span className="font-medium text-gray-900">
-                              {candidateResult.candidate.full_name}
-                            </span>
+                            <div className="relative">
+                              <div className="h-12 w-12 rounded-full bg-gray-100 overflow-hidden ring-2 ring-white shadow">
+                                {candidateResult.candidate.photo_url ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={candidateResult.candidate.photo_url}
+                                    alt={candidateResult.candidate.full_name}
+                                    className="h-full w-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="h-full w-full flex items-center justify-center text-xs font-semibold text-gray-400">
+                                    {candidateResult.candidate.full_name
+                                      .split(' ')
+                                      .map((n) => n[0])
+                                      .slice(0, 2)
+                                      .join('')
+                                      .toUpperCase()}
+                                  </div>
+                                )}
+                              </div>
+                              <span
+                                className={`absolute -bottom-1 -right-1 h-6 w-6 rounded-full flex items-center justify-center text-xs font-bold border-2 border-white ${
+                                  index === 0 && candidateResult.votes_count > 0
+                                    ? 'bg-yellow-100 text-yellow-700'
+                                    : 'bg-gray-100 text-gray-500'
+                                }`}
+                              >
+                                {index + 1}
+                              </span>
+                            </div>
+                            <div>
+                              <p className="font-semibold text-gray-900">
+                                {candidateResult.candidate.full_name}
+                              </p>
+                              <p className="text-xs text-gray-500">Score</p>
+                            </div>
                           </div>
-                          <div className="text-right">
-                            <span className="font-semibold text-gray-900">
-                              {candidateResult.votes_count}
-                            </span>
-                            <span className="text-gray-500 ml-2">
-                              ({candidateResult.percentage.toFixed(1)}%)
-                            </span>
+
+                          <div className="flex-1">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-sm text-gray-600">{candidateResult.votes_count} vote{candidateResult.votes_count !== 1 ? 's' : ''}</span>
+                              <span className="text-sm font-semibold text-gray-900">
+                                {candidateResult.percentage.toFixed(1)}%
+                              </span>
+                            </div>
+                            <div className="w-full bg-gray-100 rounded-full h-3">
+                              <div
+                                className="h-3 rounded-full transition-all duration-500"
+                                style={{
+                                  width: `${candidateResult.percentage}%`,
+                                  backgroundColor: getProgressColor(candidateResult.percentage)
+                                }}
+                              />
+                            </div>
                           </div>
-                        </div>
-                        <div className="w-full bg-gray-100 rounded-full h-3">
-                          <div
-                            className="h-3 rounded-full transition-all duration-500"
-                            style={{
-                              width: `${candidateResult.percentage}%`,
-                              backgroundColor: getProgressColor(candidateResult.percentage)
-                            }}
-                          />
                         </div>
                       </div>
                     ))}
