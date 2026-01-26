@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Vote, CheckCircle, User, AlertCircle, ChevronDown, ChevronUp, LogOut } from 'lucide-react';
+import { Vote, CheckCircle, User, AlertCircle, ChevronDown, ChevronUp, LogOut, Trophy, Award, BarChart3 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Modal from '@/components/ui/Modal';
@@ -11,8 +11,8 @@ import Badge from '@/components/ui/Badge';
 import { useAuth } from '@/hooks/useAuth';
 import { useInstance } from '@/contexts/InstanceContext';
 import { getCandidates } from '@/lib/services/candidate.service';
-import { createVote, getCategoriesWithVoteStatus } from '@/lib/services/vote.service';
-import type { Candidate } from '@/types';
+import { createVote, getCategoriesWithVoteStatus, getInstanceResults } from '@/lib/services/vote.service';
+import type { Candidate, CategoryResults } from '@/types';
 
 interface CategoryWithStatus {
   id: string;
@@ -44,10 +44,15 @@ export default function InstanceVotePage() {
   const [error, setError] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [results, setResults] = useState<CategoryResults[]>([]);
 
   useEffect(() => {
-    if (authUser?.voter?.id && currentInstance) {
-      loadData();
+    if (currentInstance) {
+      if (currentInstance.status === 'completed') {
+        loadResults();
+      } else if (authUser?.voter?.id) {
+        loadData();
+      }
     }
   }, [authUser, currentInstance]);
 
@@ -89,6 +94,15 @@ export default function InstanceVotePage() {
       setExpandedCategories(expanded);
     }
 
+    setLoading(false);
+  }
+
+  async function loadResults() {
+    setLoading(true);
+    const result = await getInstanceResults(instanceId);
+    if (result.success && result.data) {
+      setResults(result.data);
+    }
     setLoading(false);
   }
 
@@ -184,6 +198,154 @@ export default function InstanceVotePage() {
     );
   }
 
+  // Afficher les résultats quand l'élection est terminée
+  if (currentInstance?.status === 'completed') {
+    return (
+      <div className="space-y-6">
+        <VoterHeader />
+
+        {/* Header résultats */}
+        <div className="text-center py-4">
+          <div className="inline-flex items-center justify-center w-16 h-16 rounded-full bg-gradient-to-br from-yellow-400 to-yellow-500 mb-4">
+            <Trophy className="w-8 h-8 text-white" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900">Resultats de l'election</h1>
+          <p className="text-gray-600 mt-1">{currentInstance?.name}</p>
+        </div>
+
+        {/* Résultats par catégorie */}
+        <div className="space-y-6">
+          {results.length === 0 ? (
+            <Card>
+              <CardContent className="text-center py-12">
+                <BarChart3 className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                <p className="text-gray-500">Aucun resultat disponible</p>
+              </CardContent>
+            </Card>
+          ) : (
+            results.map((categoryResult) => {
+              const sortedCandidates = [...categoryResult.candidates].sort(
+                (a, b) => b.votes_count - a.votes_count
+              );
+              const winner = sortedCandidates[0];
+              const hasVotes = categoryResult.total_votes > 0;
+
+              return (
+                <Card key={categoryResult.category.id} className="overflow-hidden">
+                  <CardHeader className="bg-gradient-to-r from-gray-50 to-gray-100">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-white shadow-sm flex items-center justify-center">
+                          <Award className="w-5 h-5 text-yellow-500" />
+                        </div>
+                        <div>
+                          <CardTitle className="text-lg">{categoryResult.category.name}</CardTitle>
+                          <p className="text-sm text-gray-500">
+                            {categoryResult.total_votes} vote{categoryResult.total_votes !== 1 ? 's' : ''} exprime{categoryResult.total_votes !== 1 ? 's' : ''}
+                          </p>
+                        </div>
+                      </div>
+                      {hasVotes && winner && (
+                        <Badge variant="success" size="md">
+                          <Trophy className="w-3 h-3 mr-1" />
+                          {winner.candidate.full_name}
+                        </Badge>
+                      )}
+                    </div>
+                  </CardHeader>
+
+                  <CardContent className="pt-6">
+                    {!hasVotes ? (
+                      <p className="text-center text-gray-500 py-4">Aucun vote dans cette categorie</p>
+                    ) : (
+                      <div className="space-y-4">
+                        {sortedCandidates.map((candidateResult, index) => {
+                          const isWinner = index === 0;
+
+                          return (
+                            <div
+                              key={candidateResult.candidate.id}
+                              className={`relative p-4 rounded-lg border-2 ${
+                                isWinner
+                                  ? 'border-yellow-400 bg-yellow-50'
+                                  : 'border-gray-100 bg-gray-50'
+                              }`}
+                            >
+                              {isWinner && (
+                                <div className="absolute -top-3 -left-2">
+                                  <div className="bg-yellow-400 text-white text-xs font-bold px-2 py-1 rounded-full flex items-center gap-1">
+                                    <Trophy className="w-3 h-3" />
+                                    1er
+                                  </div>
+                                </div>
+                              )}
+
+                              <div className="flex items-center gap-4">
+                                {/* Photo */}
+                                {candidateResult.candidate.photo_url ? (
+                                  <img
+                                    src={candidateResult.candidate.photo_url}
+                                    alt={candidateResult.candidate.full_name}
+                                    className={`w-14 h-14 rounded-full object-cover ${
+                                      isWinner ? 'ring-2 ring-yellow-400' : ''
+                                    }`}
+                                  />
+                                ) : (
+                                  <div className={`w-14 h-14 rounded-full flex items-center justify-center ${
+                                    isWinner ? 'bg-yellow-100' : 'bg-gray-100'
+                                  }`}>
+                                    <User className={`w-7 h-7 ${isWinner ? 'text-yellow-600' : 'text-gray-400'}`} />
+                                  </div>
+                                )}
+
+                                {/* Infos */}
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <h4 className={`font-semibold ${isWinner ? 'text-yellow-700' : 'text-gray-900'}`}>
+                                      {candidateResult.candidate.full_name}
+                                    </h4>
+                                    {index > 0 && (
+                                      <span className="text-xs text-gray-400">#{index + 1}</span>
+                                    )}
+                                  </div>
+
+                                  {/* Progress bar */}
+                                  <div className="mt-2">
+                                    <div className="flex items-center justify-between text-sm mb-1">
+                                      <span className="text-gray-600">
+                                        {candidateResult.votes_count} vote{candidateResult.votes_count !== 1 ? 's' : ''}
+                                      </span>
+                                      <span className={`font-medium ${isWinner ? 'text-yellow-600' : 'text-gray-500'}`}>
+                                        {candidateResult.percentage.toFixed(1)}%
+                                      </span>
+                                    </div>
+                                    <div className="w-full bg-gray-200 rounded-full h-2.5">
+                                      <div
+                                        className={`h-2.5 rounded-full transition-all duration-500 ${
+                                          isWinner ? 'bg-yellow-400' : 'bg-gray-400'
+                                        }`}
+                                        style={{ width: `${candidateResult.percentage}%` }}
+                                      />
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Autres statuts non votables
   if (error && currentInstance?.status !== 'active') {
     return (
       <div className="space-y-6">
@@ -198,7 +360,6 @@ export default function InstanceVotePage() {
               <p className="text-gray-600">
                 {currentInstance?.status === 'draft' && 'Cette election n\'a pas encore demarre.'}
                 {currentInstance?.status === 'paused' && 'Cette election est actuellement en pause.'}
-                {currentInstance?.status === 'completed' && 'Cette election est terminee.'}
                 {currentInstance?.status === 'archived' && 'Cette election a ete archivee.'}
               </p>
             </CardContent>
