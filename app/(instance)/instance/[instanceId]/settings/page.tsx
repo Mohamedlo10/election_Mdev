@@ -249,39 +249,68 @@ export default function InstanceSettingsPage() {
             onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           />
 
-          <div className="grid grid-cols-3 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Couleur primaire
               </label>
-              <input
-                type="color"
-                value={formData.primary_color}
-                onChange={(e) => setFormData({ ...formData, primary_color: e.target.value })}
-                className="w-full h-10 rounded-lg border border-gray-300 cursor-pointer"
-              />
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={formData.primary_color}
+                  onChange={(e) => setFormData({ ...formData, primary_color: e.target.value })}
+                  className="h-10 w-10 rounded-lg border border-gray-300 cursor-pointer bg-transparent"
+                />
+                <div className="flex-1">
+                  <div
+                    className="h-10 w-full rounded-lg border border-gray-200"
+                    style={{ backgroundColor: formData.primary_color }}
+                  />
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-gray-500">{formData.primary_color.toUpperCase()}</p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+
+            <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Couleur secondaire
               </label>
-              <input
-                type="color"
-                value={formData.secondary_color}
-                onChange={(e) => setFormData({ ...formData, secondary_color: e.target.value })}
-                className="w-full h-10 rounded-lg border border-gray-300 cursor-pointer"
-              />
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={formData.secondary_color}
+                  onChange={(e) => setFormData({ ...formData, secondary_color: e.target.value })}
+                  className="h-10 w-10 rounded-lg border border-gray-300 cursor-pointer bg-transparent"
+                />
+                <div className="flex-1">
+                  <div
+                    className="h-10 w-full rounded-lg border border-gray-200"
+                    style={{ backgroundColor: formData.secondary_color }}
+                  />
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-gray-500">{formData.secondary_color.toUpperCase()}</p>
             </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
+
+            <div className="rounded-xl border border-gray-200 bg-white p-3 shadow-sm">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
                 Couleur accent
               </label>
-              <input
-                type="color"
-                value={formData.accent_color}
-                onChange={(e) => setFormData({ ...formData, accent_color: e.target.value })}
-                className="w-full h-10 rounded-lg border border-gray-300 cursor-pointer"
-              />
+              <div className="flex items-center gap-3">
+                <input
+                  type="color"
+                  value={formData.accent_color}
+                  onChange={(e) => setFormData({ ...formData, accent_color: e.target.value })}
+                  className="h-10 w-10 rounded-lg border border-gray-300 cursor-pointer bg-transparent"
+                />
+                <div className="flex-1">
+                  <div
+                    className="h-10 w-full rounded-lg border border-gray-200"
+                    style={{ backgroundColor: formData.accent_color }}
+                  />
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-gray-500">{formData.accent_color.toUpperCase()}</p>
             </div>
           </div>
 
