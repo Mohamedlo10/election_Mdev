@@ -44,7 +44,7 @@ export function SidebarHeader({
 
   return (
     <div className="flex items-center justify-between p-4 border-b border-gray-100">
-      <Link href={homeHref} className="flex items-center gap-2">
+      <Link href={homeHref} className="flex items-center gap-2 min-w-0">
         {instanceLogo ? (
           <img
             src={instanceLogo}
@@ -57,7 +57,7 @@ export function SidebarHeader({
           </div>
         )}
         {showFull && (
-          <span className="text-xl font-bold text-gray-900 truncate max-w-[140px]">
+          <span className="text-xl font-bold text-gray-900 truncate max-w-[160px]">
             {title}
           </span>
         )}
@@ -243,8 +243,8 @@ export function SidebarContainer({ collapsed, mobileOpen, onMobileClose, childre
       <aside
         className={`
           fixed left-0 top-0 h-full bg-white border-r border-gray-200
-          transition-all duration-300 z-40
-          ${collapsed && !mobileOpen ? 'w-16' : 'w-64'}
+          transition-all duration-300 z-40 overflow-hidden
+          ${mobileOpen ? 'w-72 max-w-[85vw]' : collapsed ? 'w-16' : 'w-64'}
           ${mobileOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >

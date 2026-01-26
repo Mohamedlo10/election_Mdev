@@ -155,23 +155,26 @@ export default function InstanceVotePage() {
   // Header pour les votants (utilise dans loading et error)
   const VoterHeader = () => (
     isVoter ? (
-      <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-4 -mx-4 sm:-mx-6 -mt-4 sm:-mt-6 mb-6">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 px-4 py-4 mb-6">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <div className="flex items-center gap-3 min-w-0">
             <div
-              className="w-10 h-10 rounded-lg flex items-center justify-center"
+              className="w-11 h-11 rounded-xl flex items-center justify-center flex-shrink-0"
               style={{ backgroundColor: 'var(--theme-primary)' }}
             >
               <Vote className="w-5 h-5 text-white" />
             </div>
-            <div>
-              <h2 className="font-bold text-gray-900">{currentInstance?.name || 'Election'}</h2>
-              <p className="text-sm text-gray-500">{authUser?.email}</p>
+            <div className="min-w-0">
+              <h2 className="font-bold text-gray-900 truncate">
+                {currentInstance?.name || 'Election'}
+              </h2>
+              <p className="text-sm text-gray-500 truncate">{authUser?.email}</p>
             </div>
           </div>
           <Button
             variant="outline"
             size="sm"
+            className="w-full sm:w-auto"
             onClick={() => signOut()}
           >
             <LogOut className="w-4 h-4 mr-2" />
