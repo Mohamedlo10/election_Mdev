@@ -103,8 +103,9 @@ CREATE TRIGGER tr_protect_candidates
 
 
 -- ============================================
--- 3. TRIGGER: Protect Voters
+-- 3. TRIGGER: Protect Voters (MODIFIÉ)
 -- Blocks INSERT, UPDATE, DELETE when instance status != 'draft'
+-- EXCEPTION: Permet les modifications OTP + inscription automatique
 -- ============================================
 
 CREATE OR REPLACE FUNCTION protect_voters_when_started()
@@ -125,16 +126,31 @@ BEGIN
   FROM election_instances
   WHERE id = v_instance_id;
 
-  -- Block if not in draft
+  -- Si l'élection n'est pas en draft, vérifier les modifications
   IF v_status IS NOT NULL AND v_status != 'draft' THEN
+    
+    -- Pour les UPDATE, autoriser si seules les colonnes autorisées ont changé
+    IF TG_OP = 'UPDATE' THEN
+      -- Autoriser uniquement si les colonnes critiques (identité) n'ont PAS changé
+      IF OLD.email = NEW.email AND
+         OLD.full_name = NEW.full_name AND
+         OLD.instance_id = NEW.instance_id THEN
+        -- Les colonnes d'identité n'ont pas changé, autoriser
+        -- (cela couvre les colonnes OTP + inscription automatique)
+        RETURN NEW;
+      END IF;
+      
+      -- Si on arrive ici, l'identité du votant a changé
+      RAISE EXCEPTION 'Impossible de modifier l''identite du votant: l''election est deja demarree (statut: %)', v_status
+        USING ERRCODE = 'P0001',
+              HINT = 'L''email, le nom et l''instance ne peuvent etre modifies que lorsque l''election est en mode brouillon.';
+    END IF;
+
+    -- Bloquer INSERT et DELETE
     IF TG_OP = 'INSERT' THEN
       RAISE EXCEPTION 'Impossible d''ajouter un votant: l''election est deja demarree (statut: %)', v_status
         USING ERRCODE = 'P0001',
               HINT = 'Les votants ne peuvent etre ajoutes que lorsque l''election est en mode brouillon.';
-    ELSIF TG_OP = 'UPDATE' THEN
-      RAISE EXCEPTION 'Impossible de modifier les informations du votant: l''election est deja demarree (statut: %)', v_status
-        USING ERRCODE = 'P0001',
-              HINT = 'Les informations des votants ne peuvent etre modifiees que lorsque l''election est en mode brouillon.';
     ELSIF TG_OP = 'DELETE' THEN
       RAISE EXCEPTION 'Impossible de supprimer le votant: l''election est deja demarree (statut: %)', v_status
         USING ERRCODE = 'P0001',
@@ -165,4 +181,4 @@ CREATE TRIGGER tr_protect_voters
 
 COMMENT ON FUNCTION protect_categories_when_started() IS 'Prevents category modifications when election is not in draft status';
 COMMENT ON FUNCTION protect_candidates_when_started() IS 'Prevents candidate modifications when election is not in draft status';
-COMMENT ON FUNCTION protect_voters_when_started() IS 'Prevents all voter operations (INSERT, UPDATE, DELETE) when election is not in draft status';
+COMMENT ON FUNCTION protect_voters_when_started() IS 'Prevents voter operations when election is not in draft status, except for OTP-related updates and automatic registration (auth_uid, is_registered, registered_at)';

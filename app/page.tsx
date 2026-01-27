@@ -58,17 +58,12 @@ export default function HomePage() {
                 </Button>
               </Link>
             ) : (
-              <>
-                <Link href="/login">
-                  <Button variant="ghost" size="sm" className="text-sm hidden sm:inline-flex">Connexion</Button>
-                </Link>
-                <Link href="/register">
-                  <Button size="sm" className="text-sm">
-                    <span className="hidden sm:inline">S&apos;inscrire</span>
-                    <span className="sm:hidden">Inscription</span>
-                  </Button>
-                </Link>
-              </>
+              <Link href="/login">
+                <Button size="sm" className="text-sm">
+                  <span className="hidden sm:inline">Se connecter</span>
+                  <span className="sm:hidden">Connexion</span>
+                </Button>
+              </Link>
             )}
           </nav>
         </div>
@@ -92,15 +87,10 @@ export default function HomePage() {
               et suivez les résultats en temps réel.
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
-              <Link href="/register" className="w-full sm:w-auto">
+              <Link href="/login" className="w-full sm:w-auto">
                 <Button size="lg" className="w-full sm:w-auto">
                   Commencer maintenant
                   <ArrowRight className="w-5 h-5 ml-2" />
-                </Button>
-              </Link>
-              <Link href="/login" className="w-full sm:w-auto">
-                <Button variant="outline" size="lg" className="w-full sm:w-auto">
-                  Se connecter
                 </Button>
               </Link>
             </div>
@@ -176,11 +166,11 @@ export default function HomePage() {
             Prêt à organiser votre élection ?
           </h2>
           <p className="text-sm sm:text-base text-white mb-6 sm:mb-8 px-2">
-            Inscrivez-vous gratuitement et commencez à utiliser MDev_Election dès maintenant.
+            Connectez-vous et commencez à utiliser MDev_Election dès maintenant.
           </p>
-          <Link href="/register" className="inline-block">
+          <Link href="/login" className="inline-block">
             <Button size="lg" className="bg-theme-primary hover:bg-theme-primary-dark">
-              Créer mon compte
+              Se connecter
               <ArrowRight className="w-5 h-5 ml-2" />
             </Button>
           </Link>
