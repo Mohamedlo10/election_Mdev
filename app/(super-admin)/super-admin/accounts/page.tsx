@@ -8,6 +8,12 @@ import {
   Edit,
   Search,
   Building2,
+  KeyRound,
+  Copy,
+  Check,
+  Lock,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -53,7 +59,24 @@ export default function AccountsPage() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [showResetPasswordModal, setShowResetPasswordModal] = useState(false);
   const [selectedAccount, setSelectedAccount] = useState<AccountRecord | null>(null);
+
+  // Reset password states
+  const [resetPasswordResult, setResetPasswordResult] = useState<{ success: boolean; newPassword?: string; message?: string } | null>(null);
+  const [copiedPassword, setCopiedPassword] = useState(false);
+
+  // Change own password states
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+    generateCode: false,
+  });
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [generatedPassword, setGeneratedPassword] = useState<string | null>(null);
 
   // Form states
   const [formData, setFormData] = useState({
@@ -223,6 +246,110 @@ export default function AccountsPage() {
     setShowDeleteModal(true);
   }
 
+  function openResetPasswordModal(account: AccountRecord) {
+    setSelectedAccount(account);
+    setResetPasswordResult(null);
+    setCopiedPassword(false);
+    setShowResetPasswordModal(true);
+  }
+
+  async function handleResetPassword() {
+    if (!selectedAccount) return;
+
+    setSubmitting(true);
+    setError('');
+
+    try {
+      const response = await fetch(`/api/accounts/${selectedAccount.id}/reset-password`, {
+        method: 'POST',
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        setResetPasswordResult({
+          success: true,
+          newPassword: data.newPassword,
+          message: data.warning || data.message,
+        });
+        setSuccess('Mot de passe reinitialise avec succes');
+        setTimeout(() => setSuccess(''), 3000);
+      } else {
+        setError(data.error || 'Erreur lors de la reinitialisation');
+      }
+    } catch (err) {
+      setError('Erreur de connexion');
+    }
+
+    setSubmitting(false);
+  }
+
+  async function copyPassword(password: string) {
+    try {
+      await navigator.clipboard.writeText(password);
+      setCopiedPassword(true);
+      setTimeout(() => setCopiedPassword(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
+  }
+
+  async function handleChangeOwnPassword() {
+    if (!passwordForm.currentPassword) {
+      setError('Le mot de passe actuel est requis');
+      return;
+    }
+
+    if (!passwordForm.generateCode) {
+      if (!passwordForm.newPassword) {
+        setError('Le nouveau mot de passe est requis');
+        return;
+      }
+      if (passwordForm.newPassword.length < 6) {
+        setError('Le nouveau mot de passe doit contenir au moins 6 caracteres');
+        return;
+      }
+      if (passwordForm.newPassword !== passwordForm.confirmPassword) {
+        setError('Les mots de passe ne correspondent pas');
+        return;
+      }
+    }
+
+    setSubmitting(true);
+    setError('');
+
+    try {
+      const response = await fetch('/api/accounts/change-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          currentPassword: passwordForm.currentPassword,
+          newPassword: passwordForm.generateCode ? undefined : passwordForm.newPassword,
+          generateNewCode: passwordForm.generateCode,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        if (data.newPassword) {
+          setGeneratedPassword(data.newPassword);
+        } else {
+          setShowChangePasswordModal(false);
+          setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '', generateCode: false });
+          setSuccess('Mot de passe modifie avec succes');
+          setTimeout(() => setSuccess(''), 3000);
+        }
+      } else {
+        setError(data.error || 'Erreur lors du changement de mot de passe');
+      }
+    } catch (err) {
+      setError('Erreur de connexion');
+    }
+
+    setSubmitting(false);
+  }
+
   const filteredAccounts = accounts.filter((account) => {
     if (!searchTerm) return true;
     const search = searchTerm.toLowerCase();
@@ -262,10 +389,24 @@ export default function AccountsPage() {
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Gestion des comptes</h1>
           <p className="text-sm sm:text-base text-gray-600 mt-1">Gerez les administrateurs et observateurs</p>
         </div>
-        <Button onClick={() => setShowCreateModal(true)} className="w-full sm:w-auto">
-          <Plus className="w-4 h-4 mr-2" />
-          Nouveau compte
-        </Button>
+        <div className="flex gap-2 w-full sm:w-auto">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setShowChangePasswordModal(true);
+              setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '', generateCode: false });
+              setGeneratedPassword(null);
+            }}
+            className="flex-1 sm:flex-none"
+          >
+            <Lock className="w-4 h-4 mr-2" />
+            Mon mot de passe
+          </Button>
+          <Button onClick={() => setShowCreateModal(true)} className="flex-1 sm:flex-none">
+            <Plus className="w-4 h-4 mr-2" />
+            Nouveau compte
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -391,14 +532,23 @@ export default function AccountsPage() {
                       <td className="py-3 px-4">
                         <div className="flex justify-end gap-2">
                           <button
+                            onClick={() => openResetPasswordModal(account)}
+                            className="p-1.5 rounded-lg hover:bg-green-50 text-green-600"
+                            title="Reinitialiser le mot de passe"
+                          >
+                            <KeyRound className="w-4 h-4" />
+                          </button>
+                          <button
                             onClick={() => openEditModal(account)}
                             className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-500"
+                            title="Modifier"
                           >
                             <Edit className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => openDeleteModal(account)}
                             className="p-1.5 rounded-lg hover:bg-red-50 text-red-500"
+                            title="Supprimer"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -544,6 +694,214 @@ export default function AccountsPage() {
               Supprimer
             </Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Change Own Password Modal */}
+      <Modal
+        isOpen={showChangePasswordModal}
+        onClose={() => {
+          setShowChangePasswordModal(false);
+          setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '', generateCode: false });
+          setGeneratedPassword(null);
+        }}
+        title="Changer mon mot de passe"
+        size="sm"
+      >
+        <div className="space-y-4">
+          {!generatedPassword ? (
+            <>
+              <div className="relative">
+                <Input
+                  label="Mot de passe actuel"
+                  type={showCurrentPassword ? 'text' : 'password'}
+                  placeholder="Entrez votre mot de passe actuel"
+                  value={passwordForm.currentPassword}
+                  onChange={(e) => setPasswordForm({ ...passwordForm, currentPassword: e.target.value })}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                  className="absolute right-3 top-9 text-gray-400 hover:text-gray-600"
+                >
+                  {showCurrentPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+
+              <div className="border-t pt-4">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={passwordForm.generateCode}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, generateCode: e.target.checked })}
+                    className="w-4 h-4 text-green-600 rounded focus:ring-green-500"
+                  />
+                  <span className="text-sm text-gray-700">Generer un code a 6 chiffres automatiquement</span>
+                </label>
+              </div>
+
+              {!passwordForm.generateCode && (
+                <>
+                  <div className="relative">
+                    <Input
+                      label="Nouveau mot de passe"
+                      type={showNewPassword ? 'text' : 'password'}
+                      placeholder="Entrez le nouveau mot de passe"
+                      value={passwordForm.newPassword}
+                      onChange={(e) => setPasswordForm({ ...passwordForm, newPassword: e.target.value })}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword(!showNewPassword)}
+                      className="absolute right-3 top-9 text-gray-400 hover:text-gray-600"
+                    >
+                      {showNewPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+
+                  <Input
+                    label="Confirmer le nouveau mot de passe"
+                    type="password"
+                    placeholder="Confirmez le nouveau mot de passe"
+                    value={passwordForm.confirmPassword}
+                    onChange={(e) => setPasswordForm({ ...passwordForm, confirmPassword: e.target.value })}
+                  />
+                </>
+              )}
+
+              <div className="flex justify-end gap-3 pt-4">
+                <Button variant="outline" onClick={() => setShowChangePasswordModal(false)}>
+                  Annuler
+                </Button>
+                <Button onClick={handleChangeOwnPassword} loading={submitting}>
+                  Changer le mot de passe
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded-r">
+                <p className="text-sm text-green-700 font-medium">
+                  Mot de passe modifie avec succes !
+                </p>
+              </div>
+
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-500 mb-2">Votre nouveau mot de passe :</p>
+                <div className="flex items-center gap-2">
+                  <code className="text-2xl font-bold tracking-widest text-green-600">
+                    {generatedPassword}
+                  </code>
+                  <button
+                    onClick={() => copyPassword(generatedPassword)}
+                    className="p-2 rounded-lg hover:bg-gray-200 text-gray-500"
+                    title="Copier"
+                  >
+                    {copiedPassword ? (
+                      <Check className="w-5 h-5 text-green-600" />
+                    ) : (
+                      <Copy className="w-5 h-5" />
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 rounded-r">
+                <p className="text-sm text-yellow-700">
+                  <strong>Important :</strong> Notez ce code, il sera necessaire pour votre prochaine connexion.
+                </p>
+              </div>
+
+              <div className="flex justify-end pt-4">
+                <Button onClick={() => {
+                  setShowChangePasswordModal(false);
+                  setPasswordForm({ currentPassword: '', newPassword: '', confirmPassword: '', generateCode: false });
+                  setGeneratedPassword(null);
+                }}>
+                  Fermer
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </Modal>
+
+      {/* Reset Password Modal */}
+      <Modal
+        isOpen={showResetPasswordModal}
+        onClose={() => {
+          setShowResetPasswordModal(false);
+          setResetPasswordResult(null);
+        }}
+        title="Reinitialiser le mot de passe"
+        size="sm"
+      >
+        <div className="space-y-4">
+          {!resetPasswordResult ? (
+            <>
+              <p className="text-gray-600">
+                Vous allez reinitialiser le mot de passe du compte{' '}
+                <span className="font-semibold">{selectedAccount?.email}</span>.
+              </p>
+              <div className="bg-blue-50 border-l-4 border-blue-400 p-4 rounded-r">
+                <p className="text-sm text-blue-700">
+                  Un nouveau code a 6 chiffres sera genere et envoye par email a l&apos;utilisateur.
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3 pt-4">
+                <Button variant="outline" onClick={() => setShowResetPasswordModal(false)}>
+                  Annuler
+                </Button>
+                <Button onClick={handleResetPassword} loading={submitting}>
+                  <KeyRound className="w-4 h-4 mr-2" />
+                  Reinitialiser
+                </Button>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="bg-green-50 border-l-4 border-green-400 p-4 rounded-r">
+                <p className="text-sm text-green-700 font-medium">
+                  Mot de passe reinitialise avec succes !
+                </p>
+                <p className="text-sm text-green-600 mt-1">
+                  {resetPasswordResult.message}
+                </p>
+              </div>
+
+              {resetPasswordResult.newPassword && (
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="text-sm text-gray-500 mb-2">Nouveau mot de passe (a communiquer manuellement) :</p>
+                  <div className="flex items-center gap-2">
+                    <code className="text-2xl font-bold tracking-widest text-green-600">
+                      {resetPasswordResult.newPassword}
+                    </code>
+                    <button
+                      onClick={() => copyPassword(resetPasswordResult.newPassword!)}
+                      className="p-2 rounded-lg hover:bg-gray-200 text-gray-500"
+                      title="Copier"
+                    >
+                      {copiedPassword ? (
+                        <Check className="w-5 h-5 text-green-600" />
+                      ) : (
+                        <Copy className="w-5 h-5" />
+                      )}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex justify-end pt-4">
+                <Button onClick={() => {
+                  setShowResetPasswordModal(false);
+                  setResetPasswordResult(null);
+                }}>
+                  Fermer
+                </Button>
+              </div>
+            </>
+          )}
         </div>
       </Modal>
     </div>
