@@ -1,6 +1,6 @@
 -- ============================================
 -- Migration: Système OTP pour les votants
--- Code valide 1 heure, réutilisable tant que valide
+-- Code valide 10 heures, réutilisable tant que valide
 -- ============================================
 
 -- Ajouter les colonnes OTP à la table voters
@@ -59,7 +59,7 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- Fonction: Générer et stocker un code OTP (valide 5 heures)
+-- Fonction: Générer et stocker un code OTP (valide 10 heures)
 CREATE OR REPLACE FUNCTION generate_voter_otp(p_voter_id UUID)
 RETURNS TABLE (
   code VARCHAR,
@@ -71,8 +71,8 @@ DECLARE
 BEGIN
   -- Générer un code à 6 chiffres
   new_code := LPAD(FLOOR(RANDOM() * 1000000)::TEXT, 6, '0');
-  -- Expiration dans 5 heures
-  expiration := NOW() + INTERVAL '5 hours';
+  -- Expiration dans 10 heures
+  expiration := NOW() + INTERVAL '10 hours';
 
   -- Mettre à jour le votant
   UPDATE voters
