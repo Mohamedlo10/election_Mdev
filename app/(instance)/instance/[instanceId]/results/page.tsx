@@ -82,7 +82,7 @@ export default function InstanceResultsPage() {
               </div>
               <div>
                 <p className="text-sm text-gray-500">Votants inscrits</p>
-                <p className="text-2xl font-bold">{stats.registered_voters}</p>
+                <p className="text-2xl font-bold">{stats.registered_voters}/{stats.eligible_voters || stats.total_voters || stats.registered_voters}</p>
               </div>
             </CardContent>
           </Card>

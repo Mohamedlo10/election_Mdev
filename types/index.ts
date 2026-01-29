@@ -208,6 +208,7 @@ export interface ElectionStats {
   votes_cast: number;
   participation_rate: number;
   categories_count: number;
+  eligible_voters: number;
   candidates_count: number;
 }
 
