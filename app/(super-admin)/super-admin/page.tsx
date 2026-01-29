@@ -10,10 +10,13 @@ import {
   CheckCircle,
   Clock,
   TrendingUp,
+  Download,
 } from 'lucide-react';
 import { createClient } from '@/lib/supabase/client';
 import Link from 'next/link';
 import type { ElectionInstance } from '@/types';
+import * as XLSX from 'xlsx';
+import ExportVotesModal from '@/components/admin/ExportVotesModal';
 
 interface GlobalStats {
   totalInstances: number;
@@ -34,6 +37,8 @@ export default function SuperAdminDashboardPage() {
   });
   const [recentInstances, setRecentInstances] = useState<ElectionInstance[]>([]);
   const [loading, setLoading] = useState(true);
+  const [exporting, setExporting] = useState(false);
+  const [showExportModal, setShowExportModal] = useState(false);
 
   useEffect(() => {
     async function loadData() {
@@ -72,6 +77,89 @@ export default function SuperAdminDashboardPage() {
 
     loadData();
   }, []);
+
+  const handleExportVotes = async (instanceId: string, instanceName: string) => {
+    try {
+      setExporting(true);
+
+      // Appeler l'API pour récupérer les données des votes de cette instance
+      const response = await fetch(`/api/votes/export?instanceId=${instanceId}`);
+      if (!response.ok) {
+        throw new Error('Erreur lors de la récupération des votes');
+      }
+
+      const { data } = await response.json();
+
+      if (!data || data.length === 0) {
+        alert(`Aucun vote à exporter pour l'instance "${instanceName}"`);
+        return;
+      }
+
+      // Grouper les votes par catégorie
+      const votesByCategory: Record<string, any[]> = {};
+      data.forEach((vote: any) => {
+        const categoryName = vote.category_name || 'Sans catégorie';
+        if (!votesByCategory[categoryName]) {
+          votesByCategory[categoryName] = [];
+        }
+        votesByCategory[categoryName].push({
+          'Nom du votant': vote.voter_name,
+          'Email': vote.voter_email,
+          'Candidat voté': vote.candidate_name,
+          'Heure du vote': new Date(vote.vote_timestamp).toLocaleString('fr-FR', {
+            dateStyle: 'short',
+            timeStyle: 'medium'
+          })
+        });
+      });
+
+      // Créer un nouveau workbook Excel
+      const workbook = XLSX.utils.book_new();
+
+      // Trier les catégories par ordre
+      const sortedCategories = Object.keys(votesByCategory).sort((a, b) => {
+        const orderA = data.find((v: any) => v.category_name === a)?.category_order || 0;
+        const orderB = data.find((v: any) => v.category_name === b)?.category_order || 0;
+        return orderA - orderB;
+      });
+
+      // Ajouter une feuille par catégorie
+      sortedCategories.forEach((categoryName) => {
+        const categoryVotes = votesByCategory[categoryName];
+        
+        // Créer la feuille à partir des données
+        const worksheet = XLSX.utils.json_to_sheet(categoryVotes);
+        
+        // Ajuster la largeur des colonnes
+        const columnWidths = [
+          { wch: 25 }, // Nom du votant
+          { wch: 30 }, // Email
+          { wch: 25 }, // Candidat voté
+          { wch: 20 }, // Heure du vote
+        ];
+        worksheet['!cols'] = columnWidths;
+        
+        // Tronquer le nom de la feuille si nécessaire (limite Excel: 31 caractères)
+        const sheetName = categoryName.length > 31 
+          ? categoryName.substring(0, 28) + '...'
+          : categoryName;
+        
+        XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+      });
+
+      // Générer le fichier Excel
+      const fileName = `votes-${instanceName.replace(/[^a-z0-9]/gi, '-')}-${new Date().toISOString().split('T')[0]}.xlsx`;
+      XLSX.writeFile(workbook, fileName);
+
+      alert(`Export réussi ! ${data.length} vote(s) exporté(s) dans ${sortedCategories.length} catégorie(s).`);
+
+    } catch (error) {
+      console.error('Erreur lors de l\'export:', error);
+      alert('Erreur lors de l\'export des votes. Veuillez réessayer.');
+    } finally {
+      setExporting(false);
+    }
+  };
 
   const statCards = [
     {
@@ -144,13 +232,23 @@ export default function SuperAdminDashboardPage() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
-          Dashboard Super Admin
-        </h1>
-        <p className="text-sm sm:text-base text-gray-600 mt-1">
-          Vue d&apos;ensemble de toutes les elections
-        </p>
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-gray-900">
+            Dashboard Super Admin
+          </h1>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">
+            Vue d&apos;ensemble de toutes les elections
+          </p>
+        </div>
+        <button
+          onClick={() => setShowExportModal(true)}
+          disabled={loading}
+          className="inline-flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          <Download className="w-4 h-4" />
+          Exporter les votes (Excel)
+        </button>
       </div>
 
       {/* Stats Grid */}
@@ -238,6 +336,13 @@ export default function SuperAdminDashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Modal d'export */}
+      <ExportVotesModal
+        isOpen={showExportModal}
+        onClose={() => setShowExportModal(false)}
+        onExport={handleExportVotes}
+      />
     </div>
   );
 }

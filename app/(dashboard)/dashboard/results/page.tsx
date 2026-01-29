@@ -1,14 +1,17 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { BarChart3, Users, Vote, TrendingUp, RefreshCw } from 'lucide-react';
+import { BarChart3, Users, Vote, TrendingUp, RefreshCw, FileDown } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Select from '@/components/ui/Select';
 import Badge from '@/components/ui/Badge';
 import { useAuth } from '@/hooks/useAuth';
 import { getAllInstances, getElectionStats } from '@/lib/services/election.service';
-import { getInstanceResults } from '@/lib/services/vote.service';
+import { getInstanceResults, getVotesByHour } from '@/lib/services/vote.service';
+import VoteEvolutionChart from '@/components/results/VoteEvolutionChart';
+import CategoryBarChart from '@/components/results/CategoryBarChart';
+import { generateElectionResultsPDF } from '@/lib/utils/pdfGenerator';
 import type { ElectionInstance, CategoryResults, ElectionStats } from '@/types';
 
 export default function ResultsPage() {
@@ -19,6 +22,9 @@ export default function ResultsPage() {
   const [stats, setStats] = useState<ElectionStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [voteEvolutionData, setVoteEvolutionData] = useState<any[]>([]);
+  const [showCharts, setShowCharts] = useState(false);
 
   useEffect(() => {
     loadInstances();
@@ -48,9 +54,10 @@ export default function ResultsPage() {
   async function loadResults() {
     setLoading(true);
 
-    const [resultsRes, statsRes] = await Promise.all([
+    const [resultsRes, statsRes, timingRes] = await Promise.all([
       getInstanceResults(selectedInstanceId),
       getElectionStats(selectedInstanceId),
+      getVotesByHour(selectedInstanceId),
     ]);
 
     if (resultsRes.success && resultsRes.data) {
@@ -61,6 +68,18 @@ export default function ResultsPage() {
       setStats(statsRes.data);
     }
 
+    if (timingRes.success && timingRes.data && timingRes.data.length > 0) {
+      // Transformer les données pour le graphique
+      const transformedData = timingRes.data.map((item: any, index: number) => ({
+        time: item.hour,
+        votes: item.count,
+        cumulativeVotes: timingRes.data!
+          .slice(0, index + 1)
+          .reduce((sum: number, curr: any) => sum + curr.count, 0),
+      }));
+      setVoteEvolutionData(transformedData);
+    }
+
     setLoading(false);
   }
 
@@ -68,6 +87,56 @@ export default function ResultsPage() {
     setRefreshing(true);
     await loadResults();
     setRefreshing(false);
+  }
+
+  async function handleExportPDF() {
+    if (!stats || results.length === 0) {
+      alert('Aucun résultat à exporter');
+      return;
+    }
+
+    try {
+      setExporting(true);
+      setShowCharts(true);
+
+      // Attendre que les graphiques soient rendus
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      const selectedInstance = instances.find(i => i.id === selectedInstanceId);
+      
+      const electionData = {
+        instanceName: selectedInstance?.name || 'Élection',
+        instanceLogo: selectedInstance?.logo_url || undefined,
+        totalVoters: stats.registered_voters,
+        totalVotes: stats.votes_cast,
+        participationRate: stats.participation_rate,
+        categories: results.map(cr => ({
+          name: cr.category.name,
+          candidates: cr.candidates.map(c => ({
+            id: c.candidate.id,
+            full_name: c.candidate.full_name,
+            photo_url: c.candidate.photo_url,
+            votes: c.votes_count,
+            percentage: c.percentage,
+          })),
+        })),
+      };
+
+      const categoryChartIds = results.map((_, index) => `category-chart-${index}`);
+      
+      await generateElectionResultsPDF(
+        electionData,
+        voteEvolutionData.length > 0 ? 'evolution-chart' : undefined,
+        categoryChartIds
+      );
+
+      setShowCharts(false);
+    } catch (error) {
+      console.error('Erreur lors de l\'export PDF:', error);
+      alert('Erreur lors de la génération du PDF. Veuillez réessayer.');
+    } finally {
+      setExporting(false);
+    }
   }
 
   const instanceOptions = instances.map((i) => ({
@@ -101,6 +170,10 @@ export default function ResultsPage() {
           <Button variant="outline" onClick={handleRefresh} disabled={refreshing}>
             <RefreshCw className={`w-4 h-4 mr-2 ${refreshing ? 'animate-spin' : ''}`} />
             Actualiser
+          </Button>
+          <Button onClick={handleExportPDF} disabled={exporting || loading || results.length === 0}>
+            <FileDown className="w-4 h-4 mr-2" />
+            {exporting ? 'Export en cours...' : 'Exporter PDF'}
           </Button>
         </div>
       </div>
@@ -229,6 +302,50 @@ export default function ResultsPage() {
                 )}
               </CardContent>
             </Card>
+          ))}
+        </div>
+      )}
+
+      {/* Graphiques cachés pour l'export PDF */}
+      {showCharts && (
+        <div style={{ position: 'absolute', left: '-9999px', top: 0 }}>
+          {voteEvolutionData.length > 0 && (
+            <div 
+              id="evolution-chart" 
+              style={{ 
+                width: '1200px', 
+                height: '600px', 
+                backgroundColor: '#ffffff',
+                padding: '20px',
+                fontFamily: 'Arial, sans-serif',
+                color: '#000000'
+              }}
+            >
+              <VoteEvolutionChart data={voteEvolutionData} />
+            </div>
+          )}
+          {results.map((categoryResult, index) => (
+            <div
+              key={categoryResult.category.id}
+              id={`category-chart-${index}`}
+              style={{ 
+                width: '1200px', 
+                height: '600px', 
+                backgroundColor: '#ffffff',
+                padding: '20px',
+                fontFamily: 'Arial, sans-serif',
+                color: '#000000'
+              }}
+            >
+              <CategoryBarChart
+                data={categoryResult.candidates.map(c => ({
+                  name: c.candidate.full_name,
+                  votes: c.votes_count,
+                  percentage: c.percentage,
+                }))}
+                categoryName={categoryResult.category.name}
+              />
+            </div>
           ))}
         </div>
       )}
