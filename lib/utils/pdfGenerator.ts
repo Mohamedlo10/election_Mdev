@@ -52,7 +52,7 @@ async function captureChartAsImage(elementId: string): Promise<string> {
   }
 
   const canvas = await html2canvas(element, {
-    scale: 2,
+    scale: 1.5, // Réduit de 2 à 1.5 pour compression
     backgroundColor: '#ffffff',
     logging: false,
     useCORS: true,
@@ -88,7 +88,8 @@ async function captureChartAsImage(elementId: string): Promise<string> {
     }
   });
 
-  return canvas.toDataURL('image/png');
+  // Convertir en JPEG avec compression pour réduire la taille
+  return canvas.toDataURL('image/jpeg', 0.85); // Qualité 85% pour compression
 }
 
 /**
@@ -170,12 +171,12 @@ export async function generateElectionResultsPDF(
     pdf.setFontSize(16);
     pdf.setTextColor(0, 0, 0);
     pdf.text('Évolution des votes dans le temps', margin, yPosition);
-    yPosition += 10;
+    yPosition += 15;
 
     try {
       const chartImage = await captureChartAsImage(evolutionChartId);
-      const chartHeight = (contentWidth * 0.6); // Ratio 16:9
-      pdf.addImage(chartImage, 'PNG', margin, yPosition, contentWidth, chartHeight);
+      const chartHeight = (contentWidth * 0.7); // Augmenté de 0.6 à 0.7 pour plus de visibilité
+      pdf.addImage(chartImage, 'JPEG', margin, yPosition, contentWidth, chartHeight, undefined, 'FAST'); // Compression FAST
       yPosition += chartHeight + 10;
     } catch (error) {
       console.error('Error capturing evolution chart:', error);
@@ -201,8 +202,8 @@ export async function generateElectionResultsPDF(
     if (categoryChartIds && categoryChartIds[i]) {
       try {
         const chartImage = await captureChartAsImage(categoryChartIds[i]);
-        const chartHeight = (contentWidth * 0.5);
-        pdf.addImage(chartImage, 'PNG', margin, yPosition, contentWidth, chartHeight);
+        const chartHeight = (contentWidth * 0.6); // Augmenté de 0.5 à 0.6
+        pdf.addImage(chartImage, 'JPEG', margin, yPosition, contentWidth, chartHeight, undefined, 'FAST');
         yPosition += chartHeight + 10;
       } catch (error) {
         console.error(`Error capturing chart for category ${category.name}:`, error);
@@ -232,7 +233,8 @@ export async function generateElectionResultsPDF(
         try {
           const photoBase64 = await imageUrlToBase64(candidate.photo_url);
           if (photoBase64) {
-            pdf.addImage(photoBase64, 'JPEG', candidateX, yPosition, photoSize, photoSize);
+            // Compression de la photo
+            pdf.addImage(photoBase64, 'JPEG', candidateX, yPosition, photoSize, photoSize, undefined, 'FAST');
           }
         } catch (error) {
           console.error(`Error loading photo for ${candidate.full_name}:`, error);
