@@ -47,7 +47,7 @@ const navItems: NavItem[] = [
     label: 'Votants',
     href: '/voters',
     icon: Users,
-    roles: ['super_admin', 'admin'],
+    roles: ['super_admin', 'admin','observer'],
   },
   {
     label: 'Observateurs',

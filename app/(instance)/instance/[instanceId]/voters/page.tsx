@@ -15,6 +15,7 @@ import {
   Search,
   Lock,
   HelpCircle,
+  Eye,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -32,6 +33,7 @@ import {
   getVotersStats,
 } from '@/lib/services/voter.service';
 import { useInstance } from '@/contexts/InstanceContext';
+import { useAuth } from '@/hooks/useAuth';
 import type { Voter, VoterImport } from '@/types';
 import ImportHelpModal from '@/components/ui/ImportHelpModal';
 
@@ -39,6 +41,12 @@ export default function InstanceVotersPage() {
   const params = useParams();
   const instanceId = params.instanceId as string;
   const { currentInstance, canModifyVoters, canAddVoters } = useInstance();
+  const { authUser } = useAuth();
+
+  // Vérifier si l'utilisateur est un observateur
+  const isObserver = authUser?.role === 'observer';
+  const canManageVoters = !isObserver && canModifyVoters;
+  const canCreateVoters = !isObserver && canAddVoters;
 
   const [voters, setVoters] = useState<Voter[]>([]);
   const [filteredVoters, setFilteredVoters] = useState<Voter[]>([]);
@@ -198,6 +206,7 @@ export default function InstanceVotersPage() {
   }
 
   function openEditModal(voter: Voter) {
+    if (isObserver) return; // Bloquer pour les observateurs
     setSelectedVoter(voter);
     setFormData({
       full_name: voter.full_name,
@@ -208,6 +217,7 @@ export default function InstanceVotersPage() {
   }
 
   function openDeleteModal(voter: Voter) {
+    if (isObserver) return; // Bloquer pour les observateurs
     setSelectedVoter(voter);
     setShowDeleteModal(true);
     setActionMenuId(null);
@@ -237,42 +247,56 @@ export default function InstanceVotersPage() {
         </Alert>
       )}
 
+      {/* Alert banner for observers */}
+      {isObserver && (
+        <Alert variant="info">
+          <Eye className="w-4 h-4 mr-2 flex-shrink-0" />
+          <span>
+            Mode observateur : vous pouvez consulter les votants mais pas les modifier.
+          </span>
+        </Alert>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Votants</h1>
-          <p className="text-sm sm:text-base text-gray-600 mt-1">Gerez la liste des votants autorises</p>
+          <p className="text-sm sm:text-base text-gray-600 mt-1">
+            {isObserver ? 'Consultez la liste des votants autorises' : 'Gerez la liste des votants autorises'}
+          </p>
         </div>
-        <div className="flex items-center gap-2">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileSelect}
-            accept=".xlsx,.xls,.csv"
-            className="hidden"
-          />
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => setShowHelpModal(true)}
-            title="Aide à l'import"
-          >
-            <HelpCircle className="w-5 h-5" />
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => fileInputRef.current?.click()}
-            className="flex-1 sm:flex-none"
-            disabled={!canAddVoters}
-          >
-            <Upload className="w-4 h-4 mr-2" />
-            <span className="hidden sm:inline">Importer</span>
-            <span className="sm:hidden">Import</span>
-          </Button>
-          <Button onClick={() => setShowCreateModal(true)} className="flex-1 sm:flex-none" disabled={!canAddVoters}>
-            <Plus className="w-4 h-4 mr-2" />
-            Ajouter
-          </Button>
-        </div>
+        {!isObserver && (
+          <div className="flex items-center gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileSelect}
+              accept=".xlsx,.xls,.csv"
+              className="hidden"
+            />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowHelpModal(true)}
+              title="Aide à l'import"
+            >
+              <HelpCircle className="w-5 h-5" />
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex-1 sm:flex-none"
+              disabled={!canCreateVoters}
+            >
+              <Upload className="w-4 h-4 mr-2" />
+              <span className="hidden sm:inline">Importer</span>
+              <span className="sm:hidden">Import</span>
+            </Button>
+            <Button onClick={() => setShowCreateModal(true)} className="flex-1 sm:flex-none" disabled={!canCreateVoters}>
+              <Plus className="w-4 h-4 mr-2" />
+              Ajouter
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Stats */}
@@ -345,9 +369,11 @@ export default function InstanceVotersPage() {
             <p className="text-gray-500 mb-4">
               {searchTerm
                 ? 'Essayez avec d\'autres termes de recherche'
-                : 'Ajoutez des votants manuellement ou importez depuis un fichier Excel'}
+                : isObserver 
+                  ? 'Aucun votant n\'a ete ajoute pour cette election'
+                  : 'Ajoutez des votants manuellement ou importez depuis un fichier Excel'}
             </p>
-            {!searchTerm && canAddVoters && (
+            {!searchTerm && !isObserver && canCreateVoters && (
               <div className="flex items-center justify-center gap-3">
                 <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
                   <Upload className="w-4 h-4 mr-2" />
@@ -379,9 +405,11 @@ export default function InstanceVotersPage() {
                   <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                     Date d&apos;inscription
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
+                  {!isObserver && (
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100">
@@ -403,45 +431,47 @@ export default function InstanceVotersPage() {
                         ? new Date(voter.registered_at).toLocaleDateString('fr-FR')
                         : '-'}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right">
-                      <div className="relative inline-block">
-                        <button
-                          onClick={() => setActionMenuId(actionMenuId === voter.id ? null : voter.id)}
-                          className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"
-                        >
-                          <MoreVertical className="w-5 h-5" />
-                        </button>
+                    {!isObserver && (
+                      <td className="px-6 py-4 whitespace-nowrap text-right">
+                        <div className="relative inline-block">
+                          <button
+                            onClick={() => setActionMenuId(actionMenuId === voter.id ? null : voter.id)}
+                            className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400"
+                          >
+                            <MoreVertical className="w-5 h-5" />
+                          </button>
 
-                        {actionMenuId === voter.id && (
-                          <div className="absolute right-0 top-8 w-40 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-10">
-                            <button
-                              onClick={() => canModifyVoters && openEditModal(voter)}
-                              disabled={!canModifyVoters}
-                              className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
-                                canModifyVoters
-                                  ? 'text-gray-700 hover:bg-gray-50'
-                                  : 'text-gray-400 cursor-not-allowed'
-                              }`}
-                            >
-                              {canModifyVoters ? <Edit className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-                              Modifier
-                            </button>
-                            <button
-                              onClick={() => canModifyVoters && openDeleteModal(voter)}
-                              disabled={!canModifyVoters}
-                              className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
-                                canModifyVoters
-                                  ? 'text-red-600 hover:bg-red-50'
-                                  : 'text-gray-400 cursor-not-allowed'
-                              }`}
-                            >
-                              {canModifyVoters ? <Trash2 className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
-                              Supprimer
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    </td>
+                          {actionMenuId === voter.id && (
+                            <div className="absolute right-0 top-8 w-40 bg-white rounded-lg shadow-lg border border-gray-100 py-1 z-10">
+                              <button
+                                onClick={() => canManageVoters && openEditModal(voter)}
+                                disabled={!canManageVoters}
+                                className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
+                                  canManageVoters
+                                    ? 'text-gray-700 hover:bg-gray-50'
+                                    : 'text-gray-400 cursor-not-allowed'
+                                }`}
+                              >
+                                {canManageVoters ? <Edit className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                                Modifier
+                              </button>
+                              <button
+                                onClick={() => canManageVoters && openDeleteModal(voter)}
+                                disabled={!canManageVoters}
+                                className={`flex items-center gap-2 w-full px-4 py-2 text-sm ${
+                                  canManageVoters
+                                    ? 'text-red-600 hover:bg-red-50'
+                                    : 'text-gray-400 cursor-not-allowed'
+                                }`}
+                              >
+                                {canManageVoters ? <Trash2 className="w-4 h-4" /> : <Lock className="w-4 h-4" />}
+                                Supprimer
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -450,100 +480,107 @@ export default function InstanceVotersPage() {
         </Card>
       )}
 
-      {/* Create Modal */}
-      <Modal
-        isOpen={showCreateModal}
-        onClose={() => setShowCreateModal(false)}
-        title="Ajouter un votant"
-      >
-        <div className="space-y-4">
-          <Input
-            label="Nom complet"
-            placeholder="Ex: Jean Dupont"
-            value={formData.full_name}
-            onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-          />
-          <Input
-            label="Email"
-            type="email"
-            placeholder="jean@exemple.com"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          />
-          <div className="flex justify-end gap-3 pt-4">
-            <Button variant="outline" onClick={() => setShowCreateModal(false)}>
-              Annuler
-            </Button>
-            <Button onClick={handleCreate} loading={submitting}>
-              Ajouter
-            </Button>
+      {/* Create Modal - Only show for non-observers */}
+      {!isObserver && (
+        <Modal
+          isOpen={showCreateModal}
+          onClose={() => setShowCreateModal(false)}
+          title="Ajouter un votant"
+        >
+          <div className="space-y-4">
+            <Input
+              label="Nom complet"
+              placeholder="Ex: Jean Dupont"
+              value={formData.full_name}
+              onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+            />
+            <Input
+              label="Email"
+              type="email"
+              placeholder="jean@exemple.com"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            />
+            <div className="flex justify-end gap-3 pt-4">
+              <Button variant="outline" onClick={() => setShowCreateModal(false)}>
+                Annuler
+              </Button>
+              <Button onClick={handleCreate} loading={submitting}>
+                Ajouter
+              </Button>
+            </div>
           </div>
-        </div>
-      </Modal>
+        </Modal>
+      )}
 
-      {/* Edit Modal */}
-      <Modal
-        isOpen={showEditModal}
-        onClose={() => setShowEditModal(false)}
-        title="Modifier le votant"
-      >
-        <div className="space-y-4">
-          <Input
-            label="Nom complet"
-            value={formData.full_name}
-            onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
-          />
-          <Input
-            label="Email"
-            type="email"
-            value={formData.email}
-            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-          />
-          <div className="flex justify-end gap-3 pt-4">
-            <Button variant="outline" onClick={() => setShowEditModal(false)}>
-              Annuler
-            </Button>
-            <Button onClick={handleUpdate} loading={submitting}>
-              Enregistrer
-            </Button>
+      {/* Edit Modal - Only show for non-observers */}
+      {!isObserver && (
+        <Modal
+          isOpen={showEditModal}
+          onClose={() => setShowEditModal(false)}
+          title="Modifier le votant"
+        >
+          <div className="space-y-4">
+            <Input
+              label="Nom complet"
+              value={formData.full_name}
+              onChange={(e) => setFormData({ ...formData, full_name: e.target.value })}
+            />
+            <Input
+              label="Email"
+              type="email"
+              value={formData.email}
+              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+            />
+            <div className="flex justify-end gap-3 pt-4">
+              <Button variant="outline" onClick={() => setShowEditModal(false)}>
+                Annuler
+              </Button>
+              <Button onClick={handleUpdate} loading={submitting}>
+                Enregistrer
+              </Button>
+            </div>
           </div>
-        </div>
-      </Modal>
+        </Modal>
+      )}
 
-      {/* Delete Modal */}
-      <Modal
-        isOpen={showDeleteModal}
-        onClose={() => setShowDeleteModal(false)}
-        title="Supprimer le votant"
-        size="sm"
-      >
-        <div className="space-y-4">
-          <p className="text-gray-600">
-            Etes-vous sur de vouloir supprimer{' '}
-            <span className="font-semibold">{selectedVoter?.full_name}</span> ?
-          </p>
-          <div className="flex justify-end gap-3 pt-4">
-            <Button variant="outline" onClick={() => setShowDeleteModal(false)}>
-              Annuler
-            </Button>
-            <Button variant="danger" onClick={handleDelete} loading={submitting}>
-              Supprimer
-            </Button>
+      {/* Delete Modal - Only show for non-observers */}
+      {!isObserver && (
+        <Modal
+          isOpen={showDeleteModal}
+          onClose={() => setShowDeleteModal(false)}
+          title="Supprimer le votant"
+          size="sm"
+        >
+          <div className="space-y-4">
+            <p className="text-gray-600">
+              Etes-vous sur de vouloir supprimer{' '}
+              <span className="font-semibold">{selectedVoter?.full_name}</span> ?
+            </p>
+            <div className="flex justify-end gap-3 pt-4">
+              <Button variant="outline" onClick={() => setShowDeleteModal(false)}>
+                Annuler
+              </Button>
+              <Button variant="danger" onClick={handleDelete} loading={submitting}>
+                Supprimer
+              </Button>
+            </div>
           </div>
-        </div>
-      </Modal>
+        </Modal>
+      )}
 
-      {/* Import Modal */}
-      <Modal
-        isOpen={showImportModal}
-        onClose={() => {
-          setShowImportModal(false);
-          setImportData([]);
-          setImportResult(null);
-        }}
-        title="Importer des votants"
-        size="lg"
-      >
+      {/* Import Modal - Only show for non-observers */}
+      {!isObserver && (
+        <Modal
+          isOpen={showImportModal}
+          onClose={() => {
+            setShowImportModal(false);
+            setImportData([]);
+            setImportResult(null);
+          }}
+          title="Importer des votants"
+          size="lg"
+        >
         <div className="space-y-4">
           {importResult ? (
             <div>
@@ -639,14 +676,17 @@ export default function InstanceVotersPage() {
             </>
           )}
         </div>
-      </Modal>
+        </Modal>
+      )}
 
       {actionMenuId && (
         <div className="fixed inset-0 z-0" onClick={() => setActionMenuId(null)} />
       )}
 
-      {/* Help Modal */}
-      <ImportHelpModal isOpen={showHelpModal} onClose={() => setShowHelpModal(false)} />
+      {/* Help Modal - Only show for non-observers */}
+      {!isObserver && (
+        <ImportHelpModal isOpen={showHelpModal} onClose={() => setShowHelpModal(false)} />
+      )}
     </div>
   );
 }
