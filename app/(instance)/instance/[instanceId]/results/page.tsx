@@ -155,7 +155,7 @@ export default function InstanceResultsPage() {
                 {categoryResult.candidates.length === 0 ? (
                   <p className="text-gray-500 text-center py-4">Aucun candidat</p>
                 ) : (
-                  <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {categoryResult.candidates.map((candidateResult, index) => (
                       <div key={candidateResult.candidate.id} className="rounded-xl border border-gray-200 bg-white p-4 shadow-sm">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-4">
