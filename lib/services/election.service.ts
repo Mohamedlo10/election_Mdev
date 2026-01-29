@@ -140,6 +140,7 @@ export async function getElectionStats(instanceId: string): Promise<ApiResponse<
       participation_rate: stats.registered_voters > 0
         ? (stats.votes_cast / stats.registered_voters) * 100
         : 0,
+      eligible_voters: Number(stats.eligible_voters),
       categories_count: Number(stats.categories_count),
       candidates_count: Number(stats.candidates_count),
     },
