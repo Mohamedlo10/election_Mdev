@@ -329,7 +329,7 @@ export function getOtpEmailTemplate(fullName: string, code: string, instanceName
 
         <div style="background: #fef3c7; border-left: 4px solid #eab308; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0;">
           <p style="margin: 0; color: #92400e; font-size: 14px;">
-            <strong>Ce code expire dans 10 minutes.</strong><br>
+            <strong>Ce code est votre code pour toute l'election renouveler chaque 10 heures.</strong><br>
             Ne partagez jamais ce code avec personne.
           </p>
         </div>
