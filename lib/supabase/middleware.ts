@@ -1,6 +1,16 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+// Fonction utilitaire pour créer une promesse avec timeout
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) =>
+      setTimeout(() => reject(new Error('Supabase request timeout')), ms)
+    ),
+  ]);
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -33,9 +43,17 @@ export async function updateSession(request: NextRequest) {
   // supabase.auth.getUser(). A simple mistake could make it very hard to debug
   // issues with users being randomly logged out.
 
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  let user = null;
+  try {
+    const {
+      data: { user: authUser },
+    } = await withTimeout(supabase.auth.getUser(), 5000); // 5 secondes de timeout
+    user = authUser;
+  } catch (error) {
+    console.error('Middleware auth error:', error);
+    // Continuer sans utilisateur plutôt que de bloquer
+    user = null;
+  }
 
   // Routes publiques
   const publicRoutes = ['/', '/login', '/register'];
