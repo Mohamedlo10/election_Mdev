@@ -25,6 +25,7 @@ export interface ElectionInstance {
   updated_at: string;
   started_at: string | null;
   ended_at: string | null;
+  auth_purged_at?: string | null;
 }
 
 export interface CreateElectionInstance {

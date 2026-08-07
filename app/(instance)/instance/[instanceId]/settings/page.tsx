@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
-import { Settings, Play, Pause, StopCircle, AlertTriangle, XCircle } from 'lucide-react';
+import { Settings, Play, Pause, StopCircle, AlertTriangle, XCircle, UserX, CheckCircle } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -17,6 +17,7 @@ import {
   pauseElection,
   endElection,
   uploadLogo,
+  deleteElectionVotersAuth,
 } from '@/lib/services/election.service';
 import type { ElectionStatus } from '@/types';
 
@@ -48,6 +49,9 @@ export default function InstanceSettingsPage() {
   const [showActionModal, setShowActionModal] = useState(false);
   const [actionType, setActionType] = useState<'start' | 'pause' | 'end' | null>(null);
 
+  const [showPurgeModal, setShowPurgeModal] = useState(false);
+  const [purging, setPurging] = useState(false);
+
   useEffect(() => {
     if (currentInstance) {
       setFormData({
@@ -59,6 +63,24 @@ export default function InstanceSettingsPage() {
       setCurrentLogoUrl(currentInstance.logo_url);
     }
   }, [currentInstance]);
+
+  async function handlePurgeAuth() {
+    if (!currentInstance) return;
+    setPurging(true);
+    setError('');
+    setSuccess('');
+
+    const result = await deleteElectionVotersAuth(instanceId);
+    if (result.success && result.data) {
+      setSuccess(result.data.message || 'Comptes d\'authentification supprimés avec succès');
+      await refreshInstance();
+    } else {
+      setError(result.error || 'Erreur lors de la suppression des comptes');
+    }
+
+    setShowPurgeModal(false);
+    setPurging(false);
+  }
 
   async function handleSave() {
     if (!currentInstance) return;
@@ -219,10 +241,69 @@ export default function InstanceSettingsPage() {
                   </Button>
                 </>
               )}
+              {(currentInstance.status === 'completed' || currentInstance.status === 'archived') && (
+                currentInstance.auth_purged_at ? (
+                  <Badge variant="success" size="md">
+                    <CheckCircle className="w-4 h-4 mr-1.5 inline" />
+                    Comptes Auth purgés
+                  </Badge>
+                ) : (
+                  <Button variant="danger" onClick={() => setShowPurgeModal(true)}>
+                    <UserX className="w-4 h-4 mr-2" />
+                    Supprimer les comptes Auth
+                  </Button>
+                )
+              )}
             </div>
           </div>
         </CardContent>
       </Card>
+
+      {/* Nettoyage des comptes d'accès si élection terminée */}
+      {(currentInstance.status === 'completed' || currentInstance.status === 'archived') && (
+        currentInstance.auth_purged_at ? (
+          <Card className="border-green-200 bg-green-50/50">
+            <CardHeader>
+              <CardTitle className="text-green-900 flex items-center gap-2">
+                <CheckCircle className="w-5 h-5 text-green-600" />
+                Purge des comptes d&apos;accès effectuée
+              </CardTitle>
+              <CardDescription className="text-green-700">
+                Les comptes d&apos;authentification Supabase Auth de cette élection ont été définitivement purgés.
+                <span className="block mt-1 text-xs text-green-800 font-medium">
+                  Date de purge : {new Date(currentInstance.auth_purged_at).toLocaleDateString('fr-FR')} à {new Date(currentInstance.auth_purged_at).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })}
+                </span>
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center gap-2">
+                <Badge variant="success" size="md">
+                  <CheckCircle className="w-4 h-4 mr-1.5 inline" />
+                  Comptes Auth réinitialisés (Emails et noms conservés)
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <Card className="border-red-200 bg-red-50/40">
+            <CardHeader>
+              <CardTitle className="text-red-900 flex items-center gap-2">
+                <UserX className="w-5 h-5 text-red-600" />
+                Purge des comptes d&apos;accès des votants
+              </CardTitle>
+              <CardDescription className="text-red-700">
+                L&apos;élection est terminée. Vous pouvez supprimer définitivement les comptes d&apos;authentification Supabase Auth créés par les votants. Leurs e-mails et noms resteront conservés dans la liste des votants.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Button variant="danger" onClick={() => setShowPurgeModal(true)}>
+                <UserX className="w-4 h-4 mr-2" />
+                Supprimer les comptes Auth des votants
+              </Button>
+            </CardContent>
+          </Card>
+        )
+      )}
 
       {/* General Settings */}
       <Card>
@@ -399,6 +480,36 @@ export default function InstanceSettingsPage() {
               loading={saving}
             >
               Confirmer
+            </Button>
+          </div>
+        </div>
+      </Modal>
+
+      {/* Modal Purge Auth */}
+      <Modal
+        isOpen={showPurgeModal}
+        onClose={() => setShowPurgeModal(false)}
+        title="Supprimer les comptes d'accès des votants"
+      >
+        <div className="space-y-4">
+          <Alert variant="warning">
+            <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0" />
+            <span>Cette action supprimera définitivement les comptes Supabase Auth des votants de cette élection.</span>
+          </Alert>
+
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3.5 text-xs text-gray-700 space-y-2">
+            <p className="font-semibold text-gray-900">Conséquences de l&apos;opération :</p>
+            <p className="flex items-center gap-1.5">• <span>Les identifiants d&apos;authentification des votants sont supprimés.</span></p>
+            <p className="flex items-center gap-1.5">• <strong>Les noms et adresses e-mails restent conservés dans la liste des votants.</strong></p>
+            <p className="flex items-center gap-1.5">• <span>Les bulletins de vote et les statistiques ne sont pas affectés.</span></p>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <Button variant="outline" onClick={() => setShowPurgeModal(false)} disabled={purging}>
+              Annuler
+            </Button>
+            <Button variant="danger" onClick={handlePurgeAuth} loading={purging}>
+              Confirmer la suppression
             </Button>
           </div>
         </div>

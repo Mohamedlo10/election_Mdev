@@ -27,7 +27,8 @@ CREATE TABLE election_instances (
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
   started_at TIMESTAMPTZ,
-  ended_at TIMESTAMPTZ
+  ended_at TIMESTAMPTZ,
+  auth_purged_at TIMESTAMPTZ
 );
 
 -- ============================================
@@ -554,6 +555,90 @@ BEGIN
   ORDER BY votes_count DESC;
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- ============================================
+-- FONCTION: Supprimer les comptes auth des votants après la fin d'une élection
+-- (Les emails et informations des votants sont conservés dans la table voters)
+-- ============================================
+CREATE OR REPLACE FUNCTION delete_election_voters_auth(p_instance_id UUID)
+RETURNS TABLE (
+  deleted_count INTEGER,
+  message TEXT
+) AS $$
+DECLARE
+  v_instance_status election_status;
+  v_is_admin BOOLEAN;
+  v_count INTEGER := 0;
+BEGIN
+  -- 1. Vérifier si l'utilisateur courant est admin de cette instance ou super_admin
+  SELECT EXISTS (
+    SELECT 1 FROM users_roles
+    WHERE user_id = auth.uid()
+    AND (
+      (instance_id = p_instance_id AND role = 'admin')
+      OR role = 'super_admin'
+    )
+  ) INTO v_is_admin;
+
+  IF NOT v_is_admin THEN
+    RAISE EXCEPTION 'Accès refusé: Seuls les administrateurs de cette instance ou les super-admins peuvent supprimer les comptes d''authentification.';
+  END IF;
+
+  -- 2. Vérifier que l'élection est bien terminée (status = ''completed'' ou ''archived'')
+  SELECT status INTO v_instance_status
+  FROM election_instances
+  WHERE id = p_instance_id;
+
+  IF v_instance_status IS NULL THEN
+    RAISE EXCEPTION 'Instance d''élection introuvable.';
+  END IF;
+
+  IF v_instance_status NOT IN ('completed', 'archived') THEN
+    RAISE EXCEPTION 'Action impossible: L''élection doit être terminée (statut completed ou archived) pour pouvoir purger les comptes d''authentification.';
+  END IF;
+
+  -- 3. Compter le nombre de comptes auth de votants à supprimer
+  SELECT COUNT(DISTINCT v.auth_uid)::INTEGER INTO v_count
+  FROM voters v
+  WHERE v.instance_id = p_instance_id
+    AND v.auth_uid IS NOT NULL
+    AND NOT EXISTS (
+      SELECT 1 FROM users_roles ur
+      WHERE ur.user_id = v.auth_uid
+        AND ur.role IN ('admin', 'super_admin')
+    );
+
+  -- 4. Supprimer les comptes d'authentification de la table auth.users
+  -- (ON DELETE SET NULL sur voters.auth_uid réinitialise le lien tout en conservant les emails)
+  DELETE FROM auth.users
+  WHERE id IN (
+    SELECT v.auth_uid
+    FROM voters v
+    WHERE v.instance_id = p_instance_id
+      AND v.auth_uid IS NOT NULL
+      AND NOT EXISTS (
+        SELECT 1 FROM users_roles ur
+        WHERE ur.user_id = v.auth_uid
+          AND ur.role IN ('admin', 'super_admin')
+      )
+  );
+
+  -- 5. Mettre à jour le statut d'inscription des votants et marquer l'instance comme purgée
+  UPDATE voters
+  SET is_registered = FALSE,
+      auth_uid = NULL
+  WHERE instance_id = p_instance_id;
+
+  UPDATE election_instances
+  SET auth_purged_at = NOW()
+  WHERE id = p_instance_id;
+
+  RETURN QUERY SELECT v_count, FORMAT('%s compte(s) d''authentification supprimé(s) avec succès. Les emails restent conservés dans la table des votants.', v_count);
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Octroyer les droits d'exécution au rôle authentifié
+GRANT EXECUTE ON FUNCTION delete_election_voters_auth(UUID) TO authenticated;
 
 -- ============================================
 -- STORAGE BUCKETS

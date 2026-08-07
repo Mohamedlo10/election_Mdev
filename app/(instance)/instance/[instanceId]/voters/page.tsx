@@ -16,6 +16,8 @@ import {
   Lock,
   HelpCircle,
   Eye,
+  UserX,
+  AlertTriangle,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
@@ -32,6 +34,7 @@ import {
   importVoters,
   getVotersStats,
 } from '@/lib/services/voter.service';
+import { deleteElectionVotersAuth } from '@/lib/services/election.service';
 import { useInstance } from '@/contexts/InstanceContext';
 import { useAuth } from '@/hooks/useAuth';
 import type { Voter, VoterImport } from '@/types';
@@ -60,6 +63,7 @@ export default function InstanceVotersPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showPurgeAuthModal, setShowPurgeAuthModal] = useState(false);
   const [selectedVoter, setSelectedVoter] = useState<Voter | null>(null);
   const [actionMenuId, setActionMenuId] = useState<string | null>(null);
 
@@ -67,8 +71,28 @@ export default function InstanceVotersPage() {
   const [importData, setImportData] = useState<VoterImport[]>([]);
   const [importResult, setImportResult] = useState<{ imported: number; errors: string[] } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [purgingAuth, setPurgingAuth] = useState(false);
+  const [purgeSuccess, setPurgeSuccess] = useState('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  async function handlePurgeAuth() {
+    setPurgingAuth(true);
+    setError('');
+    setPurgeSuccess('');
+
+    const result = await deleteElectionVotersAuth(instanceId);
+    if (result.success && result.data) {
+      setPurgeSuccess(result.data.message || 'Comptes d\'authentification supprimés avec succès');
+      await loadVoters();
+      await loadStats();
+    } else {
+      setError(result.error || 'Erreur lors de la suppression des comptes');
+    }
+
+    setPurgingAuth(false);
+    setShowPurgeAuthModal(false);
+  }
 
   useEffect(() => {
     loadVoters();
@@ -257,6 +281,13 @@ export default function InstanceVotersPage() {
         </Alert>
       )}
 
+      {purgeSuccess && (
+        <Alert variant="success">
+          {purgeSuccess}
+          <button onClick={() => setPurgeSuccess('')} className="ml-2 underline">Fermer</button>
+        </Alert>
+      )}
+
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-gray-900">Votants</h1>
@@ -266,6 +297,23 @@ export default function InstanceVotersPage() {
         </div>
         {!isObserver && (
           <div className="flex items-center gap-2">
+            {(currentInstance?.status === 'completed' || currentInstance?.status === 'archived') && (
+              currentInstance.auth_purged_at ? (
+                <Badge variant="success" size="md">
+                  <CheckCircle className="w-4 h-4 mr-1.5 inline" />
+                  Comptes Auth purgés
+                </Badge>
+              ) : (
+                <Button
+                  variant="danger"
+                  onClick={() => setShowPurgeAuthModal(true)}
+                  title="Supprimer les comptes d'accès des votants"
+                >
+                  <UserX className="w-4 h-4 mr-2" />
+                  <span>Purger comptes Auth</span>
+                </Button>
+              )
+            )}
             <input
               type="file"
               ref={fileInputRef}
@@ -687,6 +735,36 @@ export default function InstanceVotersPage() {
       {!isObserver && (
         <ImportHelpModal isOpen={showHelpModal} onClose={() => setShowHelpModal(false)} />
       )}
+
+      {/* Purge Auth Modal */}
+      <Modal
+        isOpen={showPurgeAuthModal}
+        onClose={() => setShowPurgeAuthModal(false)}
+        title="Supprimer les comptes d'accès des votants"
+      >
+        <div className="space-y-4">
+          <Alert variant="warning">
+            <AlertTriangle className="w-4 h-4 mr-2 flex-shrink-0" />
+            <span>Cette action supprimera définitivement les comptes d&apos;accès Supabase Auth de tous les votants de cette élection.</span>
+          </Alert>
+
+          <div className="bg-gray-50 border border-gray-200 rounded-lg p-3.5 text-xs text-gray-700 space-y-2">
+            <p className="font-semibold text-gray-900">Détails de l&apos;opération :</p>
+            <p className="flex items-center gap-1.5">• <span>Les identifiants et accès de connexion des votants seront réinitialisés/supprimés.</span></p>
+            <p className="flex items-center gap-1.5">• <strong>Les adresses e-mails et noms sont préservés dans la liste des votants.</strong></p>
+            <p className="flex items-center gap-1.5">• <span>Les résultats et bulletins de vote enregistrés restent intacts.</span></p>
+          </div>
+
+          <div className="flex justify-end gap-3 pt-4">
+            <Button variant="outline" onClick={() => setShowPurgeAuthModal(false)} disabled={purgingAuth}>
+              Annuler
+            </Button>
+            <Button variant="danger" onClick={handlePurgeAuth} loading={purgingAuth}>
+              Confirmer la suppression
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -227,3 +227,24 @@ export async function getInstanceAdmins(instanceId: string): Promise<ApiResponse
 
   return { data: data as { user_id: string; role: string; email: string }[], error: null, success: true };
 }
+
+// Supprimer les comptes auth des votants après la fin d'une élection
+export async function deleteElectionVotersAuth(instanceId: string): Promise<ApiResponse<{ deleted_count: number; message: string }>> {
+  const { data, error } = await supabase
+    .rpc('delete_election_voters_auth', { p_instance_id: instanceId });
+
+  if (error) {
+    return { data: null, error: error.message, success: false };
+  }
+
+  const result = data && data.length > 0 ? data[0] : null;
+  return {
+    data: {
+      deleted_count: result?.deleted_count || 0,
+      message: result?.message || '',
+    },
+    error: null,
+    success: true,
+  };
+}
+
