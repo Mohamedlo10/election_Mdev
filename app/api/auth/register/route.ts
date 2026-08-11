@@ -1,8 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { sendCodeEmail } from '@/lib/services/email.service';
+import { sendRegistrationWelcomeEmail } from '@/lib/services/email.service';
 
-// Créer un client Supabase admin pour contourner RLS
 function createAdminClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -16,135 +15,76 @@ function createAdminClient() {
   );
 }
 
-// Générer un code à 6 chiffres
-function generateCode(): string {
-  return Math.floor(100000 + Math.random() * 900000).toString();
-}
-
+/**
+ * POST /api/auth/register
+ * Inscription d'un nouvel utilisateur (administrateur potentiel)
+ */
 export async function POST(request: Request) {
   try {
-    const { email } = await request.json();
+    const { email, password } = await request.json();
 
-    if (!email) {
-      return NextResponse.json(
-        { error: 'Email requis' },
-        { status: 400 }
-      );
+    if (!email || typeof email !== 'string' || !email.trim()) {
+      return NextResponse.json({ error: 'Adresse email requise' }, { status: 400 });
     }
 
-    const supabase = createAdminClient();
-
-    // Vérifier si l'email est dans la liste des votants
-    const { data: voterData, error: voterError } = await supabase
-      .from('voters')
-      .select(`
-        id,
-        full_name,
-        is_registered,
-        instance_id,
-        election_instances (
-          id,
-          name,
-          status
-        )
-      `)
-      .eq('email', email.toLowerCase())
-      .single();
-
-    if (voterError || !voterData) {
-      return NextResponse.json(
-        { error: 'Email non trouvé dans la liste des votants autorisés' },
-        { status: 404 }
-      );
+    if (!password || typeof password !== 'string' || password.length < 8) {
+      return NextResponse.json({ error: 'Le mot de passe doit contenir au moins 8 caractères' }, { status: 400 });
     }
 
-    // Vérifier si déjà inscrit
-    if (voterData.is_registered) {
-      return NextResponse.json(
-        { error: 'Ce compte est déjà inscrit. Utilisez la page de connexion.' },
-        { status: 400 }
-      );
+    const normalizedEmail = email.toLowerCase().trim();
+    const adminClient = createAdminClient();
+
+    // 1. Vérifier si l'utilisateur existe déjà dans auth
+    const { data: usersList } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
+    const existingUser = usersList?.users?.find(u => u.email?.toLowerCase() === normalizedEmail);
+
+    if (existingUser) {
+      return NextResponse.json({
+        error: 'Un compte existe déjà avec cet email. Connectez-vous avec votre mot de passe.'
+      }, { status: 400 });
     }
 
-    // Vérifier le statut de l'instance
-    const instance = voterData.election_instances as unknown as { id: string; name: string; status: string } | null;
-    if (!instance || !['draft', 'active', 'paused'].includes(instance.status)) {
-      return NextResponse.json(
-        { error: 'Cette élection n\'est plus disponible pour l\'inscription' },
-        { status: 400 }
-      );
-    }
-
-    // Générer le code
-    const code = generateCode();
-
-    // Créer le compte auth
-    const { data: authData, error: authError } = await supabase.auth.admin.createUser({
-      email: email.toLowerCase(),
-      password: code,
+    // 2. Créer le compte d'authentification
+    const { data: authData, error: createError } = await adminClient.auth.admin.createUser({
+      email: normalizedEmail,
+      password: password,
       email_confirm: true,
     });
 
-    if (authError) {
-      console.error('Auth error:', authError);
-      
-      // Gérer le cas où l'email existe déjà dans Supabase Auth
-      if (authError.code === 'email_exists') {
-        return NextResponse.json(
-          { error: 'Un compte avec cet email existe déjà. Veuillez utiliser la page de connexion.' },
-          { status: 400 }
-        );
-      }
-      
-      return NextResponse.json(
-        { error: 'Erreur lors de la création du compte' },
-        { status: 500 }
-      );
+    if (createError) {
+      console.error('[API Register] Auth create error:', createError);
+      return NextResponse.json({ error: createError.message || 'Erreur lors de la création du compte' }, { status: 500 });
     }
 
-    // Mettre à jour le votant avec l'auth_uid
-    const { error: updateError } = await supabase
-      .from('voters')
-      .update({
-        auth_uid: authData.user.id,
-        is_registered: true,
-        registered_at: new Date().toISOString(),
-      })
-      .eq('id', voterData.id);
+    const userId = authData.user.id;
 
-    if (updateError) {
-      console.error('Update error:', updateError);
-      // Supprimer le compte auth créé
-      await supabase.auth.admin.deleteUser(authData.user.id);
-      return NextResponse.json(
-        { error: 'Erreur lors de l\'enregistrement' },
-        { status: 500 }
-      );
+    // 3. Créer une entrée dans users_roles avec le rôle 'admin' (instance_id = null avant création d'instance)
+    const { error: roleError } = await adminClient
+      .from('users_roles')
+      .insert({
+        user_id: userId,
+        instance_id: null,
+        role: 'admin',
+      });
+
+    if (roleError) {
+      console.error('[API Register] Role insert error:', roleError);
     }
 
-    // Envoyer l'email avec le code
-    const emailResult = await sendCodeEmail(
-      email.toLowerCase(),
-      voterData.full_name,
-      code,
-      instance.name
-    );
-
-    if (!emailResult.success) {
-      console.error('Email error:', emailResult.error);
-      // Ne pas annuler l'inscription, juste logger
-    }
+    // 4. Envoyer un email de bienvenue / confirmation via Nodemailer SMTP
+    await sendRegistrationWelcomeEmail(normalizedEmail);
 
     return NextResponse.json({
       success: true,
-      message: 'Compte créé avec succès. Vérifiez votre email pour obtenir votre code de connexion.',
-      instanceName: instance.name,
+      message: 'Compte créé avec succès !',
+      credentials: {
+        email: normalizedEmail,
+        password: password,
+      },
     });
+
   } catch (error) {
-    console.error('Register error:', error);
-    return NextResponse.json(
-      { error: 'Erreur interne du serveur' },
-      { status: 500 }
-    );
+    console.error('[API Register] Error:', error);
+    return NextResponse.json({ error: 'Erreur interne du serveur' }, { status: 500 });
   }
 }

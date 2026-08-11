@@ -6,8 +6,8 @@
 // Statuts d'élection
 export type ElectionStatus = 'draft' | 'active' | 'paused' | 'completed' | 'archived';
 
-// Rôles utilisateurs
-export type UserRole = 'super_admin' | 'admin' | 'observer' | 'voter';
+// Rôles utilisateurs (manager = gestionnaire opérationnel sans droits de configuration)
+export type UserRole = 'super_admin' | 'admin' | 'manager' | 'observer' | 'voter';
 
 // ============================================
 // INSTANCES D'ÉLECTION
@@ -115,6 +115,8 @@ export interface Voter {
   is_registered: boolean;
   registered_at: string | null;
   created_at: string;
+  /** NULL = mot de passe permanent pas encore défini (première connexion en attente) */
+  password_set_at: string | null;
 }
 
 export interface CreateVoter {
@@ -177,14 +179,49 @@ export interface CreateUserRole {
 }
 
 // ============================================
+// DASHBOARD UNIFIÉ — MULTI-INSTANCES
+// ============================================
+
+/** Résumé d'une instance vue depuis le Dashboard Unifié */
+export interface UserInstanceSummary {
+  /** 'admin_instance' si l'utilisateur a un rôle admin/manager/observer */
+  context: 'admin_instance' | 'voter_instance';
+  instance_id: string;
+  instance_name: string;
+  instance_status: ElectionStatus;
+  logo_url: string | null;
+  primary_color: string;
+  /** Rôle de l'utilisateur dans cette instance */
+  role: UserRole;
+  /** Uniquement renseigné si context === 'voter_instance' */
+  voter_id: string | null;
+  /** Uniquement renseigné si context === 'voter_instance' */
+  is_registered: boolean | null;
+}
+
+/** Données agrégées du Dashboard Unifié */
+export interface UserDashboardData {
+  admin_instances: UserInstanceSummary[];
+  voter_instances: UserInstanceSummary[];
+}
+
+// ============================================
 // UTILISATEUR AUTHENTIFIÉ (contexte)
 // ============================================
 export interface AuthUser {
   id: string;
   email: string;
+  /** Rôle primaire (priorité : super_admin > admin > manager > observer > voter) */
   role: UserRole;
+  /** Instance principale (pour compatibilité ascendante, null si multi-instances) */
   instance_id: string | null;
   voter?: Voter;
+  /** Toutes les instances administrées (admin/manager/observer) */
+  admin_instances?: UserInstanceSummary[];
+  /** Toutes les instances où l'utilisateur est votant */
+  voter_instances?: UserInstanceSummary[];
+  /** true si l'utilisateur a à la fois des instances admin et voter */
+  has_multiple_contexts?: boolean;
 }
 
 // ============================================

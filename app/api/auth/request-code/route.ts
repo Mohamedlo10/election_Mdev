@@ -140,19 +140,37 @@ export async function POST(request: Request) {
         await ensureAuthAccount(supabase, normalizedEmail, existingCheck.voter_id);
       } catch (error) {
         console.error('Failed to ensure auth account:', error);
-        // Continue quand même, l'inscription se fera lors de la vérification du code
       }
 
-      // Vérifier si un code valide existe déjà
-      if (existingCheck.has_valid_code) {
+      // Vérifier si le votant a déjà défini son mot de passe permanent
+      const { data: voterPasswordData } = await supabase
+        .from('voters')
+        .select('password_set_at')
+        .eq('id', existingCheck.voter_id)
+        .maybeSingle();
+
+      const passwordSet = voterPasswordData?.password_set_at != null;
+
+      // Si mot de passe défini : connexion directe par mot de passe
+      if (passwordSet) {
         return NextResponse.json({
           success: true,
           user_type: 'voter',
-          has_existing_code: true,
-          minutes_remaining: existingCheck.minutes_remaining,
-          message: `Votre code précédent est toujours valide (${existingCheck.minutes_remaining} min restantes)`,
+          password_set: true,
+          message: 'Mot de passe défini, connexion par mot de passe',
         });
       }
+
+      // Sinon : première connexion, le lien sera envoyé par /send-reset-link
+      return NextResponse.json({
+        success: true,
+        user_type: 'voter',
+        password_set: false,
+        message: 'Première connexion, envoi du lien de définition de mot de passe',
+      });
+
+      // Ancienne logique OTP conservée en commentaire pour référence :
+      // if (existingCheck.has_valid_code) { ... }
 
       // Vérifier le rate limiting
       const { data: checkData } = await supabase

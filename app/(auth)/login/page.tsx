@@ -1,16 +1,21 @@
 'use client';
 
-import { useState, useRef, Suspense } from 'react';
+import { useState, Suspense } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Vote, Mail, ArrowLeft, Loader2, Lock, Clock, CheckCircle } from 'lucide-react';
+import { Vote, Mail, ArrowLeft, Loader2, Lock, Clock, CheckCircle, Send, Eye, EyeOff } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Alert from '@/components/ui/Alert';
 import { useAuth } from '@/hooks/useAuth';
 
-type Step = 'email' | 'code' | 'password' | 'waiting';
+// Étapes du flux de connexion
+// - 'email'       : saisie de l'email (point d'entrée unique)
+// - 'password'    : saisie du mot de passe (admin/manager/observer + votants avec mdp défini)
+// - 'reset-sent'  : lien de réinitialisation/définition envoyé (première connexion votant)
+// - 'waiting'     : élection pas encore démarrée
+type Step = 'email' | 'password' | 'reset-sent' | 'waiting';
 
 function LoginForm() {
   const router = useRouter();
@@ -19,50 +24,23 @@ function LoginForm() {
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [code, setCode] = useState(['', '', '', '', '', '']);
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  const [info, setInfo] = useState('');
   const [instanceName, setInstanceName] = useState('');
-  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  const handleCodeChange = (index: number, value: string) => {
-    if (value && !/^\d$/.test(value)) return;
-
-    const newCode = [...code];
-    newCode[index] = value;
-    setCode(newCode);
-
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
-  };
-
-  const handleKeyDown = (index: number, e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Backspace' && !code[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
-  };
-
-  const handlePaste = (e: React.ClipboardEvent) => {
-    e.preventDefault();
-    const pastedData = e.clipboardData.getData('text').slice(0, 6);
-
-    if (!/^\d+$/.test(pastedData)) return;
-
-    const newCode = [...code];
-    pastedData.split('').forEach((char, i) => {
-      if (i < 6) newCode[i] = char;
-    });
-    setCode(newCode);
-
-    const nextIndex = Math.min(pastedData.length, 5);
-    inputRefs.current[nextIndex]?.focus();
-  };
-
-  const checkEmailAndRequestCode = async () => {
+  /**
+   * Étape 1 : Vérification de l'email
+   *
+   * Logique de routage :
+   * - Admin/Manager/Observer avec mdp défini → step 'password'
+   * - Votant avec mdp défini (password_set_at != null) → step 'password'
+   * - Votant sans mdp défini (première connexion) → envoie lien reset → step 'reset-sent'
+   * - Élection pas démarrée → step 'waiting'
+   * - Email inconnu → erreur
+   */
+  const handleEmailSubmit = async () => {
     setError('');
-    setInfo('');
     setLoading(true);
 
     try {
@@ -80,42 +58,28 @@ function LoginForm() {
         return;
       }
 
-      // Détecter le type d'utilisateur
       if (data.user_type === 'admin') {
+        // Admin/Manager/Observer → connexion par mot de passe
         setStep('password');
+
       } else if (data.election_not_started) {
         // Élection pas encore démarrée
-        setInstanceName(data.instance_name);
+        setInstanceName(data.instance_name || '');
         setStep('waiting');
-      } else if (data.election_ended) {
-        // Élection terminée
-        setStep('code');
-        setCode(['', '', '', '', '', '']);
-        
-        if (data.has_existing_code) {
-          setInfo(`L'élection "${data.instance_name}" est terminée. Votre dernier code est toujours valide pour consulter les résultats.`);
-        } else {
-          setError(data.message || 'Aucun code disponible pour cette élection terminée.');
-          return;
-        }
 
-        setTimeout(() => inputRefs.current[0]?.focus(), 100);
+      } else if (data.user_type === 'voter') {
+        // Votant : vérifier si le mot de passe est déjà défini
+        if (data.password_set) {
+          // Mot de passe déjà défini → connexion classique
+          setStep('password');
+        } else {
+          // Première connexion → envoyer le lien expirable
+          await sendResetLink();
+        }
       } else {
-        // Voter - élection active
-        setStep('code');
-        setCode(['', '', '', '', '', '']);
-
-        if (data.has_existing_code) {
-          // Code existant valide pour élection active
-          const timeInfo = data.minutes_remaining ? `(${data.minutes_remaining} min restantes)` : '';
-          setInfo(`Votre code précédent est toujours valide ${timeInfo}. Entrez-le ci-dessous.`);
-        } else {
-          // Nouveau code envoyé
-          setInfo('');
-        }
-
-        setTimeout(() => inputRefs.current[0]?.focus(), 100);
+        setError('Situation inattendue. Contactez l\'administrateur.');
       }
+
     } catch {
       setError('Erreur de connexion au serveur');
     } finally {
@@ -123,51 +87,39 @@ function LoginForm() {
     }
   };
 
-  const verifyCode = async () => {
-    setError('');
-    setInfo('');
+  /**
+   * Envoie le lien expirable de définition de mot de passe
+   * (utilisé pour la première connexion d'un votant)
+   */
+  const sendResetLink = async () => {
     setLoading(true);
-
-    const codeString = code.join('');
-
-    if (codeString.length !== 6) {
-      setError('Veuillez entrer les 6 chiffres du code');
-      setLoading(false);
-      return;
-    }
+    setError('');
 
     try {
-      const response = await fetch('/api/auth/verify-code', {
+      const response = await fetch('/api/auth/send-reset-link', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, code: codeString }),
+        body: JSON.stringify({ email }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        setError(data.error || 'Code invalide');
-        setLoading(false);
+        setError(data.error || 'Erreur lors de l\'envoi de l\'email');
         return;
       }
 
-      // Se connecter avec les credentials
-      if (data.credentials) {
-        const result = await signIn(data.credentials.email, data.credentials.password);
-        if (result.error) {
-          setError(result.error);
-          setLoading(false);
-          return;
-        }
-      }
-
-      router.push('/dashboard');
+      setStep('reset-sent');
     } catch {
       setError('Erreur de connexion au serveur');
+    } finally {
       setLoading(false);
     }
   };
 
+  /**
+   * Étape 2 : Connexion avec mot de passe
+   */
   const loginWithPassword = async () => {
     setError('');
     setLoading(true);
@@ -190,11 +142,8 @@ function LoginForm() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
     if (step === 'email') {
-      await checkEmailAndRequestCode();
-    } else if (step === 'code') {
-      await verifyCode();
+      await handleEmailSubmit();
     } else if (step === 'password') {
       await loginWithPassword();
     }
@@ -202,41 +151,35 @@ function LoginForm() {
 
   const handleBack = () => {
     setStep('email');
-    setCode(['', '', '', '', '', '']);
     setPassword('');
     setError('');
-    setInfo('');
     setInstanceName('');
   };
 
-  const getDescription = () => {
-    if (step === 'email') {
-      return 'Entrez votre email pour vous connecter';
-    }
-    if (step === 'code') {
-      return `Entrez le code reçu par email`;
-    }
-    if (step === 'password') {
-      return 'Entrez votre mot de passe';
-    }
-    if (step === 'waiting') {
-      return '';
-    }
-    return '';
+  // ─── Rendu du titre/description selon l'étape ─────────────────────────────
+  const stepConfig: Record<Step, { title: string; description: string }> = {
+    email: { title: 'Connexion', description: 'Entrez votre adresse email pour continuer' },
+    password: { title: 'Mot de passe', description: `Connectez-vous en tant que ${email}` },
+    'reset-sent': { title: 'Email envoyé !', description: '' },
+    waiting: { title: 'Inscription confirmée', description: '' },
   };
+
+  const { title, description } = stepConfig[step];
 
   return (
     <Card>
       <CardHeader className="text-center">
         <div className="w-14 h-14 sm:w-16 sm:h-16 bg-theme-primary-lighter rounded-full flex items-center justify-center mx-auto mb-3 sm:mb-4">
-          {step === 'waiting' ? (
-            <CheckCircle className="w-7 h-7 sm:w-8 sm:h-8 text-theme-primary" />
+          {step === 'waiting' || step === 'reset-sent' ? (
+            step === 'reset-sent'
+              ? <Send className="w-7 h-7 sm:w-8 sm:h-8 text-theme-primary" />
+              : <CheckCircle className="w-7 h-7 sm:w-8 sm:h-8 text-theme-primary" />
           ) : (
             <Vote className="w-7 h-7 sm:w-8 sm:h-8 text-theme-primary" />
           )}
         </div>
-        <CardTitle>{step === 'waiting' ? 'Inscription confirmée' : 'Connexion'}</CardTitle>
-        <CardDescription>{getDescription()}</CardDescription>
+        <CardTitle>{title}</CardTitle>
+        {description && <CardDescription>{description}</CardDescription>}
       </CardHeader>
 
       <CardContent>
@@ -246,13 +189,8 @@ function LoginForm() {
           </Alert>
         )}
 
-        {info && (
-          <Alert variant="info" className="mb-4">
-            {info}
-          </Alert>
-        )}
-
-        {step === 'waiting' ? (
+        {/* ── ÉTAPE : Élection en attente ──────────────────────────────── */}
+        {step === 'waiting' && (
           <div className="text-center py-4">
             <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
               <Clock className="w-8 h-8 text-amber-500 mx-auto mb-3" />
@@ -263,10 +201,9 @@ function LoginForm() {
                 &quot;{instanceName}&quot;
               </p>
               <p className="text-gray-600 text-sm">
-                Votre code de connexion vous sera envoyé par email dès que l&apos;élection démarrera.
+                Votre lien de connexion vous sera envoyé par email dès que l&apos;élection démarrera.
               </p>
             </div>
-
             <button
               type="button"
               onClick={handleBack}
@@ -275,132 +212,141 @@ function LoginForm() {
               Retour
             </button>
           </div>
-        ) : (
+        )}
+
+        {/* ── ÉTAPE : Lien de connexion envoyé ────────────────────────── */}
+        {step === 'reset-sent' && (
+          <div className="text-center py-4">
+            <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-4">
+              <Mail className="w-8 h-8 text-green-500 mx-auto mb-3" />
+              <p className="text-gray-700 font-medium mb-2">
+                Un lien de connexion a été envoyé à
+              </p>
+              <p className="text-theme-primary font-semibold text-lg mb-3">
+                {email}
+              </p>
+              <p className="text-gray-600 text-sm">
+                Cliquez sur le lien dans l&apos;email pour définir votre mot de passe et accéder à votre espace.
+                Le lien est valable <strong>1 heure</strong>.
+              </p>
+            </div>
+            <p className="text-xs text-gray-400 mb-3">
+              Vous n&apos;avez pas reçu l&apos;email ?
+            </p>
+            <div className="flex flex-col gap-2">
+              <Button
+                variant="outline"
+                onClick={sendResetLink}
+                loading={loading}
+                disabled={loading}
+                className="w-full"
+              >
+                Renvoyer le lien
+              </Button>
+              <button
+                type="button"
+                onClick={handleBack}
+                className="text-sm text-gray-500 hover:text-gray-700"
+              >
+                Changer d&apos;email
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── FORMULAIRE (email ou password) ──────────────────────────── */}
+        {(step === 'email' || step === 'password') && (
           <form onSubmit={handleSubmit} className="space-y-4">
+            {/* Étape email */}
             {step === 'email' && (
-              <>
-                <div className="relative mx-4">
-                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                  <Input
-                    type="email"
-                    placeholder="votremail@exemple.com"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    className="pl-10 text-black"
-                    required
-                    disabled={loading}
-                    autoFocus
-                  />
-                </div>
-
-                <Button
-                  type="submit"
-                  className="w-full"
-                  loading={loading}
-                  disabled={!email || loading}
-                >
-                  Continuer
-                </Button>
-              </>
-            )}
-
-            {step === 'code' && (
-              <>
-                <button
-                  type="button"
-                  onClick={handleBack}
-                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-4"
+              <div className="relative mx-4">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <Input
+                  type="email"
+                  placeholder="votremail@exemple.com"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="pl-10 text-black"
+                  required
                   disabled={loading}
-                >
-                  <ArrowLeft className="w-4 h-4" />
-                  Changer d&apos;email
-                </button>
-
-                <div className="text-center mb-2">
-                  <p className="text-sm text-gray-500">{email}</p>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2 text-center">
-                    Code à 6 chiffres
-                  </label>
-                  <div className="flex gap-2 sm:gap-3 justify-center">
-                    {code.map((digit, index) => (
-                      <input
-                        key={index}
-                        ref={(el) => { inputRefs.current[index] = el; }}
-                        type="text"
-                        inputMode="numeric"
-                        maxLength={1}
-                        value={digit}
-                        onChange={(e) => handleCodeChange(index, e.target.value)}
-                        onKeyDown={(e) => handleKeyDown(index, e)}
-                        onPaste={handlePaste}
-                        className="w-10 h-10 sm:w-12 sm:h-12 text-black text-center text-xl sm:text-2xl font-semibold border-2 border-gray-300 rounded-lg focus:border-theme-primary focus:ring-2 focus:ring-theme-primary-light outline-none transition-all"
-                        required
-                        disabled={loading}
-                      />
-                    ))}
-                  </div>
-                </div>
-
-                <Button
-                  type="submit"
-                  className="w-full"
-                  loading={loading}
-                  disabled={code.join('').length !== 6 || loading}
-                >
-                  Se connecter
-                </Button>
-              </>
+                  autoFocus
+                />
+              </div>
             )}
 
+            {/* Étape mot de passe */}
             {step === 'password' && (
               <>
                 <button
                   type="button"
                   onClick={handleBack}
-                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-4"
+                  className="flex items-center gap-2 text-sm text-gray-600 hover:text-gray-900 mb-2"
                   disabled={loading}
                 >
                   <ArrowLeft className="w-4 h-4" />
                   Changer d&apos;email
                 </button>
 
-                <div className="text-center mb-4">
-                  <p className="text-sm text-gray-600">{email}</p>
-                </div>
-
                 <div className="relative mx-4">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                   <Input
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     placeholder="Mot de passe"
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    className="pl-10 text-black"
+                    className="pl-10 pr-10 text-black"
                     required
                     disabled={loading}
                     autoFocus
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(p => !p)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                    tabIndex={-1}
+                  >
+                    {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+                  </button>
                 </div>
 
-                <Button
-                  type="submit"
-                  className="w-full"
-                  loading={loading}
-                  disabled={!password || loading}
-                >
-                  Se connecter
-                </Button>
+                {/* Lien mot de passe oublié */}
+                <div className="text-right mx-4">
+                  <button
+                    type="button"
+                    onClick={sendResetLink}
+                    disabled={loading}
+                    className="text-xs font-medium text-theme-primary hover:underline"
+                  >
+                    Mot de passe oublié ?
+                  </button>
+                </div>
               </>
             )}
+
+            <Button
+              type="submit"
+              className="w-full"
+              loading={loading}
+              disabled={
+                (step === 'email' && !email) ||
+                (step === 'password' && !password) ||
+                loading
+              }
+            >
+              {step === 'email' ? 'Continuer' : 'Se connecter'}
+            </Button>
           </form>
         )}
       </CardContent>
 
-      <CardFooter className="flex flex-col gap-3 text-center">
-        <Link href="/" className="text-sm text-gray-500 hover:text-gray-700">
+      <CardFooter className="flex flex-col gap-2 text-center border-t border-gray-100 pt-4">
+        <p className="text-xs text-gray-500">
+          Pas encore de compte ?{' '}
+          <Link href="/register" className="font-semibold text-theme-primary hover:underline">
+            S&apos;inscrire
+          </Link>
+        </p>
+        <Link href="/" className="text-xs text-gray-400 hover:text-gray-600 mt-1">
           Retour à l&apos;accueil
         </Link>
       </CardFooter>

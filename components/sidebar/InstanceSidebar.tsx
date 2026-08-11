@@ -11,6 +11,7 @@ import {
   Settings,
   UserCheck,
   Eye,
+  Users2,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useInstance } from '@/contexts/InstanceContext';
@@ -47,13 +48,13 @@ const navItems: NavItem[] = [
     label: 'Votants',
     href: '/voters',
     icon: Users,
-    roles: ['super_admin', 'admin','observer'],
+    roles: ['super_admin', 'admin', 'manager', 'observer'],
   },
   {
-    label: 'Observateurs',
-    href: '/observers',
-    icon: Eye,
-    roles: ['super_admin', 'admin'],
+    label: 'Équipe',
+    href: '/team',
+    icon: Users2,
+    roles: ['super_admin', 'admin', 'manager'],
   },
   {
     label: 'Voter',
@@ -62,13 +63,13 @@ const navItems: NavItem[] = [
     roles: ['voter'],
   },
   {
-    label: 'Resultats',
+    label: 'Résultats',
     href: '/results',
     icon: BarChart3,
-    roles: ['super_admin', 'admin', 'observer'],
+    roles: ['super_admin', 'admin', 'manager', 'observer'],
   },
   {
-    label: 'Parametres',
+    label: 'Paramètres',
     href: '/settings',
     icon: Settings,
     roles: ['super_admin', 'admin'],

@@ -363,3 +363,98 @@ export async function sendOtpEmail(
     fromName: instanceName,
   });
 }
+
+// Envoyer le lien de réinitialisation/définition de mot de passe (Mot de passe oublié)
+export async function sendPasswordResetLinkEmail(
+  to: string,
+  resetLink: string
+): Promise<{ success: boolean; error?: string }> {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Réinitialisation de mot de passe</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1f2937; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">MDev_Election</h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Réinitialisation de votre mot de passe</p>
+      </div>
+
+      <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+        <h2 style="color: #1f2937; margin-top: 0;">Bonjour,</h2>
+        <p>Vous avez demandé la réinitialisation (ou la définition) de votre mot de passe pour accéder à votre espace MDev_Election.</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${resetLink}"
+             style="display: inline-block; background: #22c55e; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
+            Définir / Réinitialiser mon mot de passe
+          </a>
+        </div>
+
+        <p style="color: #6b7280; font-size: 14px;">
+          Ce lien est valable <strong>1 heure</strong>. Si vous n'êtes pas à l'origine de cette demande, vous pouvez ignorer cet email en toute sécurité.
+        </p>
+      </div>
+
+      <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
+        <p>© ${new Date().getFullYear()} MDev_Election - Tous droits réservés</p>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to,
+    subject: 'Réinitialisation de votre mot de passe - MDev_Election',
+    html,
+    fromName: 'MDev_Election',
+  });
+}
+
+// Envoyer email de bienvenue à la création de compte
+export async function sendRegistrationWelcomeEmail(
+  to: string
+): Promise<{ success: boolean; error?: string }> {
+  const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/login`;
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Bienvenue sur MDev_Election</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1f2937; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">Bienvenue sur MDev_Election</h1>
+      </div>
+
+      <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+        <h2 style="color: #1f2937; margin-top: 0;">Votre compte a été créé avec succès !</h2>
+        <p>Vous pouvez maintenant vous connecter à votre espace personnel et accéder à vos différentes élections ou créer votre premier scrutin.</p>
+        
+        <div style="text-align: center; margin: 30px 0;">
+          <a href="${loginUrl}"
+             style="display: inline-block; background: #22c55e; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px;">
+            Accéder à Mon Espace
+          </a>
+        </div>
+      </div>
+
+      <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
+        <p>© ${new Date().getFullYear()} MDev_Election - Tous droits réservés</p>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to,
+    subject: 'Bienvenue sur MDev_Election - Compte créé avec succès',
+    html,
+    fromName: 'MDev_Election',
+  });
+}
+

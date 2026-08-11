@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
-import type { AuthUser, UserRole, Voter } from '@/types';
+import type { AuthUser, UserRole, Voter, UserInstanceSummary } from '@/types';
 
 interface AuthContextType {
   user: User | null;
@@ -11,6 +11,12 @@ interface AuthContextType {
   authUser: AuthUser | null;
   loading: boolean;
   hasNoRole: boolean;
+  /** Toutes les instances administrées (admin/manager/observer) */
+  adminInstances: UserInstanceSummary[];
+  /** Toutes les instances où l'utilisateur est votant */
+  voterInstances: UserInstanceSummary[];
+  /** true si l'utilisateur est à la fois admin sur une instance ET votant sur une autre */
+  hasMultipleContexts: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -78,6 +84,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [authUser, setAuthUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasNoRole, setHasNoRole] = useState(false);
+  const [adminInstances, setAdminInstances] = useState<UserInstanceSummary[]>([]);
+  const [voterInstances, setVoterInstances] = useState<UserInstanceSummary[]>([]);
+  const [hasMultipleContexts, setHasMultipleContexts] = useState(false);
 
   const supabase = createClient();
 
@@ -85,20 +94,29 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     console.log('[Auth] Fetching role via API...');
 
     try {
-      // Utiliser l'API route pour contourner les problèmes RLS
       const response = await fetch('/api/auth/me');
       const data = await response.json();
 
       console.log('[Auth] API /me result:', { status: response.status, data });
 
       if (response.ok && data.role) {
-        return {
+        const authUserData: AuthUser = {
           id: data.id,
           email: data.email,
           role: data.role as UserRole,
           instance_id: data.instance_id,
           voter: data.voter as Voter | undefined,
+          admin_instances: data.admin_instances ?? [],
+          voter_instances: data.voter_instances ?? [],
+          has_multiple_contexts: data.has_multiple_contexts ?? false,
         };
+
+        // Mettre à jour les états dérivés
+        setAdminInstances(data.admin_instances ?? []);
+        setVoterInstances(data.voter_instances ?? []);
+        setHasMultipleContexts(data.has_multiple_contexts ?? false);
+
+        return authUserData;
       }
 
       if (data.noRole) {
@@ -232,6 +250,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     authUser,
     loading,
     hasNoRole,
+    adminInstances,
+    voterInstances,
+    hasMultipleContexts,
     signIn,
     signOut,
     refreshUser,

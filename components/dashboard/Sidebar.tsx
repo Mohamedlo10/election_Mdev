@@ -16,6 +16,7 @@ import {
   ChevronRight,
   Menu,
   X,
+  User,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useState, useEffect } from 'react';
@@ -32,7 +33,7 @@ const navItems: NavItem[] = [
     label: 'Dashboard',
     href: '/dashboard',
     icon: LayoutDashboard,
-    roles: ['super_admin', 'admin', 'observer', 'voter'],
+    roles: ['super_admin', 'admin', 'manager', 'observer', 'voter'],
   },
   {
     label: 'Instances',
@@ -56,7 +57,8 @@ const navItems: NavItem[] = [
     label: 'Votants',
     href: '/dashboard/voters',
     icon: UserCheck,
-    roles: ['admin', 'super_admin'],
+    // manager peut aussi accéder à la gestion des votants
+    roles: ['admin', 'manager', 'super_admin'],
   },
   {
     label: 'Voter',
@@ -68,12 +70,13 @@ const navItems: NavItem[] = [
     label: 'Résultats',
     href: '/dashboard/results',
     icon: BarChart3,
-    roles: ['super_admin', 'admin', 'observer'],
+    roles: ['super_admin', 'admin', 'manager', 'observer'],
   },
   {
     label: 'Paramètres',
     href: '/dashboard/settings',
     icon: Settings,
+    // manager n'a PAS accès aux paramètres de l'élection
     roles: ['super_admin', 'admin'],
   },
 ];
@@ -174,6 +177,23 @@ export default function Sidebar() {
 
           {/* User section */}
           <div className="p-3 border-t border-gray-100">
+            {/* Lien Profil */}
+            <Link
+              href="/profile"
+              className={`
+                flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors mb-1
+                ${pathname === '/profile'
+                  ? 'bg-theme-primary-lighter text-theme-primary border-l-4 border-theme-primary'
+                  : 'text-gray-600 hover:bg-theme-primary-lighter hover:text-theme-primary'
+                }
+                ${(collapsed && !mobileOpen) ? 'justify-center' : ''}
+              `}
+            >
+              <User className={`w-5 h-5 flex-shrink-0 ${pathname === '/profile' ? 'text-theme-primary' : ''}`} />
+              {(!collapsed || mobileOpen) && <span className="font-medium">Mon Profil</span>}
+            </Link>
+
+            {/* Info utilisateur */}
             <div className={`flex items-center gap-3 px-3 py-2 ${(collapsed && !mobileOpen) ? 'justify-center' : ''}`}>
               <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-sm font-medium text-gray-600">
@@ -194,7 +214,7 @@ export default function Sidebar() {
             <button
               onClick={handleSignOut}
               className={`
-                flex items-center gap-3 w-full px-3 py-2.5 mt-2 rounded-lg
+                flex items-center gap-3 w-full px-3 py-2.5 mt-1 rounded-lg
                 text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors
                 ${(collapsed && !mobileOpen) ? 'justify-center' : ''}
               `}

@@ -146,6 +146,25 @@ export async function signOut(): Promise<void> {
   await supabase.auth.signOut();
 }
 
+// Mettre à jour le mot de passe de l'utilisateur connecté
+// Utilisé par /reset-password (lien expirable) et /profile (changement volontaire)
+export async function updateUserPassword(
+  newPassword: string
+): Promise<ApiResponse<null>> {
+  if (newPassword.length < 8) {
+    return { data: null, error: 'Le mot de passe doit contenir au moins 8 caractères', success: false };
+  }
+
+  const supabase = createClient();
+  const { error } = await supabase.auth.updateUser({ password: newPassword });
+
+  if (error) {
+    return { data: null, error: error.message, success: false };
+  }
+
+  return { data: null, error: null, success: true };
+}
+
 // Vérifier si l'utilisateur a un rôle spécifique
 export async function checkUserRole(
   userId: string,
