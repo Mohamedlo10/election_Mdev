@@ -17,7 +17,7 @@ function createAdminClient() {
 
 /**
  * POST /api/auth/register
- * Inscription d'un nouvel utilisateur (administrateur potentiel)
+ * Inscription d'un nouvel utilisateur (ou activation d'un utilisateur pré-invité).
  */
 export async function POST(request: Request) {
   try {
@@ -34,17 +34,39 @@ export async function POST(request: Request) {
     const normalizedEmail = email.toLowerCase().trim();
     const adminClient = createAdminClient();
 
-    // 1. Vérifier si l'utilisateur existe déjà dans auth
+    // 1. Vérifier si l'utilisateur existe déjà dans Supabase Auth (ex: pré-invité dans une équipe ou votant)
     const { data: usersList } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
     const existingUser = usersList?.users?.find(u => u.email?.toLowerCase() === normalizedEmail);
 
     if (existingUser) {
+      // Mettre à jour le mot de passe du compte existant (Auto-Réconciliation)
+      const { error: updateError } = await adminClient.auth.admin.updateUserById(
+        existingUser.id,
+        {
+          password: password,
+          email_confirm: true,
+        }
+      );
+
+      if (updateError) {
+        console.error('[API Register] Auth update error:', updateError);
+        return NextResponse.json({ error: 'Erreur lors de la mise à jour du mot de passe' }, { status: 500 });
+      }
+
+      // Envoyer un email de bienvenue
+      await sendRegistrationWelcomeEmail(normalizedEmail);
+
       return NextResponse.json({
-        error: 'Un compte existe déjà avec cet email. Connectez-vous avec votre mot de passe.'
-      }, { status: 400 });
+        success: true,
+        message: 'Compte activé avec succès !',
+        credentials: {
+          email: normalizedEmail,
+          password: password,
+        },
+      });
     }
 
-    // 2. Créer le compte d'authentification
+    // 2. Créer un nouveau compte d'authentification s'il n'existe pas encore
     const { data: authData, error: createError } = await adminClient.auth.admin.createUser({
       email: normalizedEmail,
       password: password,
@@ -55,8 +77,6 @@ export async function POST(request: Request) {
       console.error('[API Register] Auth create error:', createError);
       return NextResponse.json({ error: createError.message || 'Erreur lors de la création du compte' }, { status: 500 });
     }
-
-    const userId = authData.user.id;
 
     // 3. Envoyer un email de bienvenue / confirmation via Nodemailer SMTP
     await sendRegistrationWelcomeEmail(normalizedEmail);

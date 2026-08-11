@@ -208,6 +208,58 @@ export async function sendAccountInviteEmail(
   });
 }
 
+// Notification pour un utilisateur existant ajouté à une équipe
+export async function sendTeamAdditionEmail(
+  to: string,
+  role: string,
+  instanceName: string
+): Promise<{ success: boolean; error?: string }> {
+  const roleLabel = role === 'admin' ? 'Administrateur' : role === 'manager' ? 'Gestionnaire' : 'Observateur';
+  const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://election.mouhadev.com';
+
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Nouvel accès élection</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1f2937; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">MDev_Election</h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 5px 0 0 0;">${instanceName}</p>
+      </div>
+
+      <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+        <h2 style="color: #1f2937; margin-top: 0;">Bonjour,</h2>
+
+        <p>Vous avez été ajouté à l'équipe de l'élection <strong>${instanceName}</strong> avec le rôle de <strong>${roleLabel}</strong>.</p>
+
+        <div style="background: #f0fdf4; border-left: 4px solid #22c55e; padding: 15px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+          <p style="margin: 0; color: #166534; font-size: 14px;">
+            Cet espace est désormais disponible sur votre tableau de bord. Connectez-vous avec vos identifiants habituels pour y accéder.
+          </p>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px;">
+          <a href="${appUrl}/login"
+             style="display: inline-block; background: #22c55e; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">
+            Accéder à Mon Espace
+          </a>
+        </div>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to,
+    subject: `Nouvel accès élection - ${instanceName}`,
+    html,
+    fromName: instanceName,
+  });
+}
+
 // Template email pour reinitialisation de mot de passe admin/observateur
 export function getPasswordResetTemplate(
   email: string,

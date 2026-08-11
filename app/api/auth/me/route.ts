@@ -62,9 +62,9 @@ export async function GET() {
       });
     }
 
-    // 3. Récupérer toutes les instances via la fonction PostgreSQL
+    // 3. Récupérer toutes les instances via la fonction PostgreSQL (par user_id et par email)
     const { data: instancesData, error: instancesError } = await adminClient
-      .rpc('get_user_instances', { p_user_id: user.id });
+      .rpc('get_user_instances', { p_user_id: user.id, p_email: user.email });
 
     if (instancesError) {
       console.error('[API /me] get_user_instances error:', instancesError);
