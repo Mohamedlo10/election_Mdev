@@ -29,8 +29,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
     );
   }
 
-  // Utilisateur connecté mais sans rôle assigné
-  if (hasNoRole && user) {
+  // Utilisateur connecté mais sans rôle assigné du tout (ni admin ni voter ni pending)
+  // Les admins inscrits sans instance sont gérés par le dashboard → /admin-setup
+  if (hasNoRole && user && !authUser) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
         <div className="max-w-md w-full bg-white rounded-xl shadow-lg p-8 text-center">
@@ -48,7 +49,6 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
             variant="outline"
             onClick={async () => {
               await signOut();
-              // Force page refresh pour nettoyer le cache
               window.location.href = '/login';
             }}
             className="w-full"
@@ -60,6 +60,7 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
       </div>
     );
   }
+
 
   if (!authUser) {
     return null;

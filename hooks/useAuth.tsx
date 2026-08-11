@@ -109,6 +109,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           admin_instances: data.admin_instances ?? [],
           voter_instances: data.voter_instances ?? [],
           has_multiple_contexts: data.has_multiple_contexts ?? false,
+          no_instance_yet: data.no_instance_yet ?? false,
         };
 
         // Mettre à jour les états dérivés

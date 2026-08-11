@@ -224,11 +224,12 @@ export default function DashboardPage() {
       return;
     }
 
-    // Admin sans aucune instance → page de création
-    if (adminInstances.length === 0 && voterInstances.length === 0 && authUser.role === 'admin') {
+    // Admin fraîchement inscrit, pas encore d'instance → création d'instance
+    if (authUser.no_instance_yet || (adminInstances.length === 0 && voterInstances.length === 0 && authUser.role === 'admin')) {
       router.push('/admin-setup');
       return;
     }
+
 
     // Si aucun des cas ci-dessus → rester sur le Hub (multi-contextes ou zéro instance)
 
@@ -325,15 +326,20 @@ export default function DashboardPage() {
 
         {/* ── État vide ─────────────────────────────────────────────────── */}
         {adminInstances.length === 0 && voterInstances.length === 0 && (
-          <div className="text-center py-16">
-            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Vote className="w-8 h-8 text-gray-400" />
+          <div className="text-center py-16 bg-white rounded-2xl border border-gray-100 p-8 max-w-md mx-auto shadow-sm">
+            <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Shield className="w-8 h-8 text-green-600" />
             </div>
-            <h2 className="text-lg font-semibold text-gray-700 mb-2">Aucune élection trouvée</h2>
-            <p className="text-gray-400 text-sm max-w-sm mx-auto">
-              Vous n&apos;êtes associé à aucune élection pour le moment.
-              Contactez votre administrateur pour obtenir un accès.
+            <h2 className="text-lg font-bold text-gray-900 mb-2">Bienvenue sur votre Espace !</h2>
+            <p className="text-gray-500 text-sm mb-6">
+              Vous n&apos;avez encore aucune élection associée à votre compte. Vous pouvez créer votre premier scrutin dès maintenant.
             </p>
+            <Link
+              href="/admin-setup"
+              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-medium text-sm text-white bg-theme-primary hover:bg-theme-primary-dark transition-colors shadow-sm"
+            >
+              + Créer ma première élection
+            </Link>
           </div>
         )}
       </main>

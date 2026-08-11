@@ -125,13 +125,19 @@ export async function GET() {
       voterData = data;
     }
 
-    // 6. Si aucun rôle trouvé
+    // 6. Si aucune instance rattachée (ex: nouvellement inscrit) → retourner un statut propre avec no_instance_yet
     if (allInstances.length === 0) {
-      console.log('[API /me] No role found for user:', user.id);
-      return NextResponse.json(
-        { error: 'Aucun rôle assigné', noRole: true },
-        { status: 404 }
-      );
+      return NextResponse.json({
+        id: user.id,
+        email: user.email,
+        role: 'admin' as UserRole,
+        instance_id: null,
+        voter: null,
+        admin_instances: [],
+        voter_instances: [],
+        has_multiple_contexts: false,
+        no_instance_yet: true,
+      });
     }
 
     return NextResponse.json({

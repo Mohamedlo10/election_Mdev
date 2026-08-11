@@ -58,20 +58,7 @@ export async function POST(request: Request) {
 
     const userId = authData.user.id;
 
-    // 3. Créer une entrée dans users_roles avec le rôle 'admin' (instance_id = null avant création d'instance)
-    const { error: roleError } = await adminClient
-      .from('users_roles')
-      .insert({
-        user_id: userId,
-        instance_id: null,
-        role: 'admin',
-      });
-
-    if (roleError) {
-      console.error('[API Register] Role insert error:', roleError);
-    }
-
-    // 4. Envoyer un email de bienvenue / confirmation via Nodemailer SMTP
+    // 3. Envoyer un email de bienvenue / confirmation via Nodemailer SMTP
     await sendRegistrationWelcomeEmail(normalizedEmail);
 
     return NextResponse.json({

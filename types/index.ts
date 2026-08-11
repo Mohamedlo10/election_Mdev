@@ -222,6 +222,8 @@ export interface AuthUser {
   voter_instances?: UserInstanceSummary[];
   /** true si l'utilisateur a à la fois des instances admin et voter */
   has_multiple_contexts?: boolean;
+  /** true si l'admin est inscrit mais n'a pas encore créé d'instance */
+  no_instance_yet?: boolean;
 }
 
 // ============================================
