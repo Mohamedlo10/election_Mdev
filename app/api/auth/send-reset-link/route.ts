@@ -119,7 +119,15 @@ export async function POST(request: Request) {
     // -----------------------------------------------
     // 3. Générer et envoyer le lien de réinitialisation via Nodemailer
     // -----------------------------------------------
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const reqOrigin = request.headers.get('origin') || request.headers.get('referer')?.replace(/\/$/, '');
+    const reqHost = request.headers.get('x-forwarded-host') || request.headers.get('host');
+    const reqProto = request.headers.get('x-forwarded-proto') || 'https';
+    
+    let derivedAppUrl = process.env.NEXT_PUBLIC_APP_URL || reqOrigin;
+    if (!derivedAppUrl && reqHost) {
+      derivedAppUrl = `${reqProto}://${reqHost}`;
+    }
+    const appUrl = (derivedAppUrl || 'https://election.mouhadev.com').replace(/\/$/, '');
     const redirectTo = `${appUrl}/reset-password`;
 
     let resetLink: string | null = null;
@@ -133,6 +141,11 @@ export async function POST(request: Request) {
 
     if (linkData?.properties?.action_link) {
       resetLink = linkData.properties.action_link;
+      // Remplacer toute occurrence de localhost par l'URL réelle du site
+      resetLink = resetLink
+        .replace('http://localhost:3000', appUrl)
+        .replace('http://localhost:3001', appUrl)
+        .replace('http://127.0.0.1:3000', appUrl);
     }
 
     if (!resetLink) {

@@ -241,10 +241,34 @@ export async function POST(
       );
     } else {
       // Pour les comptes existants : envoi d'un lien expirable de réinitialisation/connexion
-      const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
-      await adminClient.auth.resetPasswordForEmail(normalizedEmail, {
-        redirectTo: `${appUrl}/reset-password`,
+      const reqOrigin = request.headers.get('origin') || request.headers.get('referer')?.replace(/\/$/, '');
+      const reqHost = request.headers.get('x-forwarded-host') || request.headers.get('host');
+      const reqProto = request.headers.get('x-forwarded-proto') || 'https';
+      
+      let derivedAppUrl = process.env.NEXT_PUBLIC_APP_URL || reqOrigin;
+      if (!derivedAppUrl && reqHost) {
+        derivedAppUrl = `${reqProto}://${reqHost}`;
+      }
+      const appUrl = (derivedAppUrl || 'https://election.mouhadev.com').replace(/\/$/, '');
+
+      // Tenter de générer et envoyer un lien propre
+      const { data: linkData } = await adminClient.auth.admin.generateLink({
+        type: 'recovery',
+        email: normalizedEmail,
+        options: { redirectTo: `${appUrl}/reset-password` },
       });
+
+      if (linkData?.properties?.action_link) {
+        let resetLink = linkData.properties.action_link
+          .replace('http://localhost:3000', appUrl)
+          .replace('http://localhost:3001', appUrl);
+        
+        await sendAccountInviteEmail(normalizedEmail, 'Mot de passe existant (conservé)', role, instanceName);
+      } else {
+        await adminClient.auth.resetPasswordForEmail(normalizedEmail, {
+          redirectTo: `${appUrl}/reset-password`,
+        });
+      }
     }
 
     return NextResponse.json({
