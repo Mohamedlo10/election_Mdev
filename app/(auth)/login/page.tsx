@@ -9,6 +9,7 @@ import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Alert from '@/components/ui/Alert';
 import { useAuth } from '@/hooks/useAuth';
+import { useEffect, useRef } from 'react';
 
 // Étapes du flux de connexion
 // - 'email'       : saisie de l'email (point d'entrée unique)
@@ -28,6 +29,23 @@ function LoginForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [instanceName, setInstanceName] = useState('');
+
+  // Cooldown 60s sur "Renvoyer le lien"
+  const [cooldown, setCooldown] = useState(0);
+  const cooldownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const startCooldown = () => {
+    setCooldown(60);
+    cooldownRef.current = setInterval(() => {
+      setCooldown(prev => {
+        if (prev <= 1) {
+          if (cooldownRef.current) clearInterval(cooldownRef.current);
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
 
   /**
    * Étape 1 : Vérification de l'email
@@ -92,6 +110,7 @@ function LoginForm() {
    * (utilisé pour la première connexion d'un votant)
    */
   const sendResetLink = async () => {
+    if (cooldown > 0) return;
     setLoading(true);
     setError('');
 
@@ -110,6 +129,7 @@ function LoginForm() {
       }
 
       setStep('reset-sent');
+      startCooldown();
     } catch {
       setError('Erreur de connexion au serveur');
     } finally {
@@ -238,10 +258,13 @@ function LoginForm() {
                 variant="outline"
                 onClick={sendResetLink}
                 loading={loading}
-                disabled={loading}
+                disabled={loading || cooldown > 0}
                 className="w-full"
               >
-                Renvoyer le lien
+                {cooldown > 0
+                  ? `Renvoyer dans ${cooldown}s`
+                  : 'Renvoyer le lien'
+                }
               </Button>
               <button
                 type="button"
@@ -314,10 +337,10 @@ function LoginForm() {
                   <button
                     type="button"
                     onClick={sendResetLink}
-                    disabled={loading}
-                    className="text-xs font-medium text-theme-primary hover:underline"
+                    disabled={loading || cooldown > 0}
+                    className="text-xs font-medium text-theme-primary hover:underline disabled:opacity-50 disabled:cursor-not-allowed"
                   >
-                    Mot de passe oublié ?
+                    {cooldown > 0 ? `Renvoi possible dans ${cooldown}s` : 'Mot de passe oublié ?'}
                   </button>
                 </div>
               </>
