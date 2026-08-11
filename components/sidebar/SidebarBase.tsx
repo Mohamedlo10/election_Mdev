@@ -203,6 +203,32 @@ export function ExitToSuperAdmin({ collapsed, mobileOpen }: ExitToSuperAdminProp
   );
 }
 
+interface ExitToDashboardProps {
+  collapsed: boolean;
+  mobileOpen?: boolean;
+}
+
+export function ExitToDashboard({ collapsed, mobileOpen }: ExitToDashboardProps) {
+  const showFull = !collapsed || mobileOpen;
+
+  return (
+    <div className="p-3">
+      <Link
+        href="/dashboard"
+        className={`
+          flex items-center gap-3 w-full px-3 py-2.5 rounded-lg
+          text-gray-700 bg-gray-50 hover:bg-gray-100 hover:text-gray-900 transition-colors
+          border border-gray-200 shadow-sm
+          ${!showFull ? 'justify-center' : ''}
+        `}
+      >
+        <ArrowLeft className="w-5 h-5 flex-shrink-0 text-gray-500" />
+        {showFull && <span className="font-medium text-sm">Mon Espace</span>}
+      </Link>
+    </div>
+  );
+}
+
 interface SidebarContainerProps {
   collapsed: boolean;
   mobileOpen?: boolean;

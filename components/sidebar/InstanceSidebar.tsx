@@ -21,6 +21,7 @@ import {
   SidebarNav,
   SidebarUserSection,
   ExitToSuperAdmin,
+  ExitToDashboard,
   MobileMenuButton,
   NavItem,
 } from './SidebarBase';
@@ -128,6 +129,8 @@ export function InstanceSidebar({ instanceId }: InstanceSidebarProps) {
           basePath={basePath}
           activeColor="bg-theme-primary-light text-theme-primary"
         />
+
+        <ExitToDashboard collapsed={collapsed} mobileOpen={mobileOpen} />
 
         {isSuperAdmin && <ExitToSuperAdmin collapsed={collapsed} mobileOpen={mobileOpen} />}
 
