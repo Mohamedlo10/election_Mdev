@@ -79,21 +79,31 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql SECURITY DEFINER;
 
--- 5. Trigger d'auto-liaison lors de la création d'un compte sur auth.users
+-- 5. Trigger d'auto-liaison lors de la création d'un compte sur auth.users (sécurisé avec gestion d'erreurs)
 CREATE OR REPLACE FUNCTION trg_auto_link_user_on_signup()
 RETURNS TRIGGER AS $$
 BEGIN
-  -- Lier les rôles d'équipe correspondants à cet email
-  UPDATE users_roles
-  SET user_id = NEW.id
-  WHERE lower(email) = lower(NEW.email) AND user_id IS NULL;
+  IF NEW.email IS NOT NULL THEN
+    -- Lier les rôles d'équipe correspondants à cet email
+    BEGIN
+      UPDATE users_roles
+      SET user_id = NEW.id
+      WHERE lower(email) = lower(NEW.email) AND (user_id IS NULL OR user_id != NEW.id);
+    EXCEPTION WHEN OTHERS THEN
+      RAISE WARNING 'Auto-link users_roles error: %', SQLERRM;
+    END;
 
-  -- Lier les entrées de votants correspondantes à cet email
-  UPDATE voters
-  SET auth_uid = NEW.id,
-      is_registered = TRUE,
-      registered_at = COALESCE(registered_at, NOW())
-  WHERE lower(email) = lower(NEW.email) AND auth_uid IS NULL;
+    -- Lier les entrées de votants correspondantes à cet email
+    BEGIN
+      UPDATE voters
+      SET auth_uid = NEW.id,
+          is_registered = TRUE,
+          registered_at = COALESCE(registered_at, NOW())
+      WHERE lower(email) = lower(NEW.email) AND (auth_uid IS NULL OR auth_uid != NEW.id);
+    EXCEPTION WHEN OTHERS THEN
+      RAISE WARNING 'Auto-link voters error: %', SQLERRM;
+    END;
+  END IF;
 
   RETURN NEW;
 END;

@@ -148,7 +148,11 @@ function LoginForm() {
       const result = await signIn(email, password);
 
       if (result.error) {
-        setError('Email ou mot de passe incorrect');
+        if (result.error.toLowerCase().includes('not confirmed') || result.error.toLowerCase().includes('confirm')) {
+          setError('Votre adresse email n\'a pas encore été confirmée. Veuillez cliquer sur le lien reçu par mail.');
+        } else {
+          setError('Email ou mot de passe incorrect');
+        }
         setLoading(false);
         return;
       }

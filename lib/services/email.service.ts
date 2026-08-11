@@ -449,3 +449,52 @@ export async function sendRegistrationWelcomeEmail(
   });
 }
 
+// Envoyer email de confirmation à l'inscription avec lien d'activation
+export async function sendEmailConfirmationLink(
+  to: string,
+  confirmationLink: string
+): Promise<{ success: boolean; error?: string }> {
+  const html = `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="utf-8">
+      <title>Confirmez votre adresse email - MDev_Election</title>
+    </head>
+    <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; line-height: 1.6; color: #1f2937; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <div style="background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
+        <h1 style="color: white; margin: 0; font-size: 24px;">MDev_Election</h1>
+        <p style="color: rgba(255,255,255,0.9); margin: 5px 0 0 0;">Confirmation d'adresse email</p>
+      </div>
+
+      <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+        <h2 style="color: #1f2937; margin-top: 0;">Bienvenue !</h2>
+        <p>Merci de vous être inscrit sur MDev_Election. Veuillez valider votre adresse email pour activer votre compte et accéder à votre espace.</p>
+        
+        <div style="text-align: center; margin: 35px 0;">
+          <a href="${confirmationLink}"
+             style="display: inline-block; background: #22c55e; color: white; padding: 14px 32px; border-radius: 8px; text-decoration: none; font-weight: bold; font-size: 16px; box-shadow: 0 4px 6px -1px rgba(34, 197, 94, 0.3);">
+            Confirmer mon compte & accéder à mon espace
+          </a>
+        </div>
+
+        <p style="color: #6b7280; font-size: 14px; margin-top: 25px;">
+          Si vous n'êtes pas à l'origine de cette inscription, vous pouvez ignorer cet email en toute sécurité.
+        </p>
+      </div>
+
+      <div style="text-align: center; padding: 20px; color: #9ca3af; font-size: 12px;">
+        <p>© ${new Date().getFullYear()} MDev_Election - Tous droits réservés</p>
+      </div>
+    </body>
+    </html>
+  `;
+
+  return sendEmail({
+    to,
+    subject: 'Confirmez votre adresse email - MDev_Election',
+    html,
+    fromName: 'MDev_Election',
+  });
+}
+

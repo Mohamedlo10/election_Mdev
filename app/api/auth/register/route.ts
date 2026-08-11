@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { sendRegistrationWelcomeEmail } from '@/lib/services/email.service';
+import { sendEmailConfirmationLink } from '@/lib/services/email.service';
 
 function createAdminClient() {
   return createClient(
@@ -17,7 +17,7 @@ function createAdminClient() {
 
 /**
  * POST /api/auth/register
- * Inscription d'un nouvel utilisateur (ou activation d'un utilisateur pré-invité).
+ * Inscription d'un nouvel utilisateur avec envoi d'email de confirmation.
  */
 export async function POST(request: Request) {
   try {
@@ -34,60 +34,61 @@ export async function POST(request: Request) {
     const normalizedEmail = email.toLowerCase().trim();
     const adminClient = createAdminClient();
 
-    // 1. Vérifier si l'utilisateur existe déjà dans Supabase Auth (ex: pré-invité dans une équipe ou votant)
+    // Détecter l'URL publique de l'application
+    const reqOrigin = request.headers.get('origin') || request.headers.get('referer')?.replace(/\/$/, '');
+    const reqHost = request.headers.get('x-forwarded-host') || request.headers.get('host');
+    const reqProto = request.headers.get('x-forwarded-proto') || 'https';
+    
+    let derivedAppUrl = process.env.NEXT_PUBLIC_APP_URL || reqOrigin;
+    if (!derivedAppUrl && reqHost) {
+      derivedAppUrl = `${reqProto}://${reqHost}`;
+    }
+    const appUrl = (derivedAppUrl || 'https://election.mouhadev.com').replace(/\/$/, '');
+
+    // 1. Vérifier si l'utilisateur existe déjà dans Supabase Auth
     const { data: usersList } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
     const existingUser = usersList?.users?.find(u => u.email?.toLowerCase() === normalizedEmail);
 
-    if (existingUser) {
-      // Mettre à jour le mot de passe du compte existant (Auto-Réconciliation)
-      const { error: updateError } = await adminClient.auth.admin.updateUserById(
-        existingUser.id,
-        {
-          password: password,
-          email_confirm: true,
-        }
-      );
-
-      if (updateError) {
-        console.error('[API Register] Auth update error:', updateError);
-        return NextResponse.json({ error: 'Erreur lors de la mise à jour du mot de passe' }, { status: 500 });
-      }
-
-      // Envoyer un email de bienvenue
-      await sendRegistrationWelcomeEmail(normalizedEmail);
-
+    if (existingUser && existingUser.email_confirmed_at) {
       return NextResponse.json({
-        success: true,
-        message: 'Compte activé avec succès !',
-        credentials: {
-          email: normalizedEmail,
-          password: password,
-        },
-      });
+        error: 'Un compte confirmé existe déjà avec cet email. Veuillez vous connecter.'
+      }, { status: 400 });
     }
 
-    // 2. Créer un nouveau compte d'authentification s'il n'existe pas encore
-    const { data: authData, error: createError } = await adminClient.auth.admin.createUser({
+    // 2. Générer le lien de confirmation Supabase (crée l'utilisateur ou régénère le lien s'il n'est pas encore confirmé)
+    const { data: linkData, error: linkError } = await adminClient.auth.admin.generateLink({
+      type: 'signup',
       email: normalizedEmail,
       password: password,
-      email_confirm: true,
+      options: {
+        redirectTo: `${appUrl}/auth/confirm`,
+      },
     });
 
-    if (createError) {
-      console.error('[API Register] Auth create error:', createError);
-      return NextResponse.json({ error: createError.message || 'Erreur lors de la création du compte' }, { status: 500 });
+    if (linkError || !linkData?.properties?.action_link) {
+      console.error('[API Register] Generate link error:', linkError);
+      return NextResponse.json({ error: linkError?.message || 'Erreur lors de la création du lien de confirmation' }, { status: 500 });
     }
 
-    // 3. Envoyer un email de bienvenue / confirmation via Nodemailer SMTP
-    await sendRegistrationWelcomeEmail(normalizedEmail);
+    let confirmationLink = linkData.properties.action_link;
+    if (appUrl.includes('mouhadev.com')) {
+      confirmationLink = confirmationLink
+        .replace('http://localhost:3000', appUrl)
+        .replace('http://localhost:3001', appUrl);
+    }
+
+    // 3. Transmettre le lien dans un email SMTP personnalisé
+    const emailResult = await sendEmailConfirmationLink(normalizedEmail, confirmationLink);
+
+    if (!emailResult.success) {
+      console.error('[API Register] Send email error:', emailResult.error);
+    }
 
     return NextResponse.json({
       success: true,
-      message: 'Compte créé avec succès !',
-      credentials: {
-        email: normalizedEmail,
-        password: password,
-      },
+      confirmation_required: true,
+      email: normalizedEmail,
+      message: 'Un email de confirmation vous a été envoyé. Veuillez cliquer sur le lien dans le mail pour activer votre compte.',
     });
 
   } catch (error) {
