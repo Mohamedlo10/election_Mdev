@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Building2, Palette, ArrowRight } from 'lucide-react';
+import { Building2, Palette, ArrowRight, ArrowLeft } from 'lucide-react';
+import Link from 'next/link';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/Card';
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
@@ -22,19 +23,12 @@ export default function AdminSetupPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Rediriger dans useEffect pour eviter l'erreur React
+  // Rediriger si non authentifié
   useEffect(() => {
     if (authLoading) return;
 
-    // Rediriger si l'utilisateur a deja une instance
-    if (authUser?.instance_id) {
-      router.push(`/instance/${authUser.instance_id}`);
-      return;
-    }
-
-    // Rediriger si l'utilisateur n'est pas admin
-    if (authUser?.role !== 'admin') {
-      router.push('/');
+    if (!authUser) {
+      router.push('/login');
       return;
     }
   }, [authUser, authLoading, router]);
@@ -83,13 +77,23 @@ export default function AdminSetupPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 to-gray-100 flex items-center justify-center p-4">
       <div className="w-full max-w-lg">
+        <div className="mb-4">
+          <Link
+            href="/dashboard"
+            className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+          >
+            <ArrowLeft className="w-4 h-4" />
+            Retour à Mon Espace
+          </Link>
+        </div>
+
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-green-100 rounded-2xl mb-4">
             <Building2 className="w-8 h-8 text-green-600" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900">Bienvenue, {authUser?.email}</h1>
           <p className="text-gray-600 mt-2">
-            Creez votre instance d&apos;election pour commencer
+            Créer une nouvelle élection
           </p>
         </div>
 

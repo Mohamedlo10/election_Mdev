@@ -224,11 +224,7 @@ export default function DashboardPage() {
       return;
     }
 
-    // Admin fraîchement inscrit, pas encore d'instance → création d'instance
-    if (authUser.no_instance_yet || (adminInstances.length === 0 && voterInstances.length === 0 && authUser.role === 'admin')) {
-      router.push('/admin-setup');
-      return;
-    }
+    // Si 0 instance ou multi-instances → rester sur Mon Espace (/dashboard)
 
 
     // Si aucun des cas ci-dessus → rester sur le Hub (multi-contextes ou zéro instance)
