@@ -4,11 +4,12 @@ import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
+import Button from '@/components/ui/Button';
 import type { UserInstanceSummary } from '@/types';
 import {
   Shield, Vote, Settings, Users, BarChart3,
   ChevronRight, Clock, CheckCircle, PauseCircle,
-  Archive, FileEdit, Loader2, User
+  Archive, FileEdit, Loader2, User, LogOut
 } from 'lucide-react';
 
 // ─── Composants de badge de statut ──────────────────────────────────────────
@@ -191,7 +192,7 @@ function VoterInstanceCard({ instance }: { instance: UserInstanceSummary }) {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { authUser, loading, adminInstances, voterInstances, hasMultipleContexts } = useAuth();
+  const { authUser, loading, adminInstances, voterInstances, hasMultipleContexts, signOut } = useAuth();
 
   useEffect(() => {
     if (loading) return;
@@ -207,22 +208,8 @@ export default function DashboardPage() {
       return;
     }
 
-    // Un seul contexte admin, aucune instance voter → redirection directe
-    if (adminInstances.length === 1 && voterInstances.length === 0) {
-      router.push(`/instance/${adminInstances[0].instance_id}`);
-      return;
-    }
-
-    // Un seul contexte voter, aucun rôle admin → redirection directe
-    if (voterInstances.length === 1 && adminInstances.length === 0) {
-      const vi = voterInstances[0];
-      if (vi.instance_status === 'active') {
-        router.push(`/instance/${vi.instance_id}/vote`);
-      } else {
-        router.push(`/instance/${vi.instance_id}/results`);
-      }
-      return;
-    }
+    // Ne plus forcer de redirection automatique pour mono-instance
+    // L'utilisateur reste toujours sur Mon Espace (/dashboard)
 
     // Si 0 instance ou multi-instances → rester sur Mon Espace (/dashboard)
 
@@ -243,10 +230,8 @@ export default function DashboardPage() {
     );
   }
 
-  // Cas où les redirections sont en cours (éviter un flash de contenu)
+  // Cas où les redirections super_admin sont en cours
   if (!authUser || authUser.role === 'super_admin') return null;
-  if (adminInstances.length === 1 && voterInstances.length === 0) return null;
-  if (voterInstances.length === 1 && adminInstances.length === 0) return null;
 
   // ─── Hub Unifié ────────────────────────────────────────────────────────────
   return (
@@ -254,17 +239,36 @@ export default function DashboardPage() {
       {/* Header */}
       <header className="bg-white border-b border-gray-100 sticky top-0 z-10">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-lg font-bold text-gray-900">Mon Espace</h1>
-            <p className="text-xs text-gray-400">{authUser.email}</p>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-theme-primary-lighter rounded-xl flex items-center justify-center">
+              <Vote className="w-5 h-5 text-theme-primary" />
+            </div>
+            <div>
+              <h1 className="text-lg font-bold text-gray-900">Mon Espace</h1>
+              <p className="text-xs text-gray-400">{authUser.email}</p>
+            </div>
           </div>
-          <Link
-            href="/profile"
-            className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors border border-gray-200"
-          >
-            <User className="w-4 h-4" />
-            Mon profil
-          </Link>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <Link
+              href="/profile"
+              className="flex items-center gap-2 px-3 py-2 rounded-lg text-sm text-gray-600 hover:bg-gray-100 transition-colors border border-gray-200"
+            >
+              <User className="w-4 h-4" />
+              Mon profil
+            </Link>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                await signOut();
+                window.location.href = '/login';
+              }}
+              className="flex items-center gap-1.5 text-xs text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Se déconnecter</span>
+            </Button>
+          </div>
         </div>
       </header>
 

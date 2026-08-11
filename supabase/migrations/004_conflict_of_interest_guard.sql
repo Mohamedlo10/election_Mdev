@@ -50,8 +50,9 @@ RETURNS TRIGGER AS $$
 DECLARE
   conflicting_user_id UUID;
   conflicting_role    TEXT;
+  existing_user_id    UUID;
 BEGIN
-  -- Chercher si l'email du votant correspond à un admin/manager sur la même instance
+  -- 1. Chercher si l'email du votant correspond à un admin/manager sur la même instance
   SELECT u.id, ur.role::TEXT
   INTO conflicting_user_id, conflicting_role
   FROM auth.users u
@@ -69,9 +70,28 @@ BEGIN
       conflicting_role;
   END IF;
 
+  -- 2. Si l'utilisateur a déjà un compte dans auth.users, lier automatiquement son auth_uid
+  IF NEW.auth_uid IS NULL THEN
+    SELECT id INTO existing_user_id
+    FROM auth.users
+    WHERE lower(email) = lower(NEW.email)
+    LIMIT 1;
+
+    IF existing_user_id IS NOT NULL THEN
+      NEW.auth_uid := existing_user_id;
+      NEW.is_registered := TRUE;
+      IF NEW.registered_at IS NULL THEN
+        NEW.registered_at := NOW();
+      END IF;
+    END IF;
+  END IF;
+
   RETURN NEW;
 END;
-$$ LANGUAGE plpgsql;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+-- Supprimer le trigger existant s'il est déjà présent
+DROP TRIGGER IF EXISTS prevent_admin_as_voter ON voters;
 
 -- Créer le trigger sur la table voters
 -- Se déclenche AVANT chaque INSERT ou UPDATE (notamment changement d'email)

@@ -2,6 +2,8 @@
 
 import { ReactNode, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { ArrowLeft, LogOut } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { InstanceProvider, useInstance } from '@/contexts/InstanceContext';
 import { InstanceSidebar } from '@/components/sidebar/InstanceSidebar';
@@ -9,7 +11,7 @@ import { InstanceSidebar } from '@/components/sidebar/InstanceSidebar';
 function InstanceLayoutContent({ children }: { children: ReactNode }) {
   const params = useParams();
   const router = useRouter();
-  const { authUser, loading: authLoading } = useAuth();
+  const { authUser, loading: authLoading, signOut } = useAuth();
   const { loading: instanceLoading, error: instanceError, currentInstance } = useInstance();
 
   const instanceId = params.instanceId as string;
@@ -27,10 +29,13 @@ function InstanceLayoutContent({ children }: { children: ReactNode }) {
       // super_admin a acces a tout
       if (authUser.role === 'super_admin') return;
 
-      // Les autres roles doivent avoir une assignation a cette instance
-      const hasAccess = authUser.instance_id === instanceId;
+      // Les autres rôles doivent avoir une assignation à cette instance (admin ou voter)
+      const hasAdminAccess = authUser.admin_instances?.some(i => i.instance_id === instanceId);
+      const hasVoterAccess = authUser.voter_instances?.some(i => i.instance_id === instanceId);
+      const hasAccess = hasAdminAccess || hasVoterAccess || authUser.instance_id === instanceId;
+
       if (!hasAccess) {
-        router.push('/');
+        router.push('/dashboard');
       }
     }
   }, [authLoading, instanceLoading, authUser, currentInstance, instanceId, router]);
@@ -78,7 +83,36 @@ function InstanceLayoutContent({ children }: { children: ReactNode }) {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {!isVoter && <InstanceSidebar instanceId={instanceId} />}
+      {isVoter ? (
+        <header className="bg-white border-b border-gray-100 sticky top-0 z-10 shadow-sm">
+          <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
+            <Link
+              href="/dashboard"
+              className="flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+            >
+              <ArrowLeft className="w-4 h-4 text-gray-500" />
+              Retour à Mon Espace
+            </Link>
+            {currentInstance && (
+              <span className="text-sm font-semibold text-gray-800 truncate max-w-xs sm:max-w-md">
+                {currentInstance.name}
+              </span>
+            )}
+            <button
+              onClick={async () => {
+                await signOut();
+                window.location.href = '/login';
+              }}
+              className="flex items-center gap-1.5 text-xs text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-red-200 transition-colors"
+            >
+              <LogOut className="w-3.5 h-3.5" />
+              <span className="hidden sm:inline">Se déconnecter</span>
+            </button>
+          </div>
+        </header>
+      ) : (
+        <InstanceSidebar instanceId={instanceId} />
+      )}
       <main className={`transition-all duration-300 p-4 sm:p-6 ${isVoter ? '' : 'lg:ml-64 pt-16 lg:pt-6'}`}>
         {children}
       </main>

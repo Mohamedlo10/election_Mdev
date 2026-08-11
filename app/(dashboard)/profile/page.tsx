@@ -10,7 +10,7 @@ import Alert from '@/components/ui/Alert';
 import { createClient } from '@/lib/supabase/client';
 import {
   User, Lock, Eye, EyeOff, Shield, Vote,
-  CheckCircle, ChevronRight, KeyRound, AlertTriangle,
+  CheckCircle, ChevronRight, KeyRound, AlertTriangle, LogOut, ArrowLeft
 } from 'lucide-react';
 import Link from 'next/link';
 import type { UserInstanceSummary } from '@/types';
@@ -312,7 +312,7 @@ function PasswordSection({ userEmail }: { userEmail: string }) {
 // ─── Page principale Profil ───────────────────────────────────────────────────
 
 export default function ProfilePage() {
-  const { authUser, adminInstances, voterInstances } = useAuth();
+  const { authUser, adminInstances, voterInstances, signOut } = useAuth();
 
   if (!authUser) return null;
 
@@ -330,16 +330,42 @@ export default function ProfilePage() {
   const initials = authUser.email?.slice(0, 2).toUpperCase() ?? '??';
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6">
+    <div className="max-w-2xl mx-auto space-y-6 pb-12">
+      {/* Lien retour */}
+      <div>
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-2 text-sm font-medium text-gray-600 hover:text-gray-900 transition-colors"
+        >
+          <ArrowLeft className="w-4 h-4" />
+          Retour à Mon Espace
+        </Link>
+      </div>
+
       {/* En-tête de profil */}
-      <div className="flex items-center gap-4">
-        <div className="w-16 h-16 rounded-2xl bg-theme-primary-lighter flex items-center justify-center flex-shrink-0 border-2 border-theme-primary-light">
-          <span className="text-2xl font-bold text-theme-primary">{initials}</span>
+      <div className="flex items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-sm">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-2xl bg-theme-primary-lighter flex items-center justify-center flex-shrink-0 border-2 border-theme-primary-light">
+            <span className="text-2xl font-bold text-theme-primary">{initials}</span>
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Mon Profil</h1>
+            <p className="text-sm text-gray-500">{authUser.email}</p>
+          </div>
         </div>
-        <div>
-          <h1 className="text-xl font-bold text-gray-900">Mon Profil</h1>
-          <p className="text-sm text-gray-500">{authUser.email}</p>
-        </div>
+
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={async () => {
+            await signOut();
+            window.location.href = '/login';
+          }}
+          className="flex items-center gap-1.5 text-xs text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
+        >
+          <LogOut className="w-4 h-4" />
+          Se déconnecter
+        </Button>
       </div>
 
       {/* Informations du compte */}
