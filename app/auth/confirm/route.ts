@@ -1,6 +1,7 @@
 import { type EmailOtpType } from '@supabase/supabase-js';
 import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { exchangeCodeForSessionWithCookies } from '@/lib/supabase/exchange-code';
 
 /**
  * GET /auth/confirm
@@ -48,7 +49,7 @@ export async function GET(request: NextRequest) {
 
   // 2. Vérification par code PKCE (OAuth Google)
   if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { error } = await exchangeCodeForSessionWithCookies(supabase, code, response);
     if (!error) {
       return response;
     }

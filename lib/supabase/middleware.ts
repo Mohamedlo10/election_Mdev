@@ -80,6 +80,10 @@ export async function updateSession(request: NextRequest) {
   );
 
   let user = null;
+  // La vérification réseau a échoué (timeout, Supabase injoignable) : on ne peut pas
+  // en conclure que l'utilisateur est déconnecté.
+  let authCheckFailed = false;
+
   if (hasSupabaseCookie) {
     try {
       const {
@@ -88,7 +92,23 @@ export async function updateSession(request: NextRequest) {
       user = authUser;
     } catch {
       user = null;
+      authCheckFailed = true;
     }
+  }
+
+  if (process.env.NODE_ENV !== 'production') {
+    console.log('[middleware]', pathname, {
+      hasSupabaseCookie,
+      authCheckFailed,
+      user: user?.email ?? null,
+      cookies: allCookies.map((c) => c.name),
+    });
+  }
+
+  // Session probablement valide mais non vérifiable : on laisse passer,
+  // le garde-fou côté client (DashboardLayout) prendra le relais.
+  if (authCheckFailed && !isPublicRoute) {
+    return supabaseResponse;
   }
 
   // Si pas connecté et route protégée

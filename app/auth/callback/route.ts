@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
+import { exchangeCodeForSessionWithCookies } from '@/lib/supabase/exchange-code';
 
 /**
  * Origine réelle de la requête.
@@ -65,10 +66,26 @@ export async function GET(request: NextRequest) {
     }
   );
 
+  const debug = process.env.NODE_ENV !== 'production';
+  if (debug) {
+    console.log('[auth/callback] IN', {
+      url: request.url,
+      hasCode: Boolean(code),
+      next,
+      cookies: request.cookies.getAll().map((c) => c.name),
+    });
+  }
+
   // 2. Échange du code PKCE contre une session
   if (code) {
-    const { error } = await supabase.auth.exchangeCodeForSession(code);
+    const { error } = await exchangeCodeForSessionWithCookies(supabase, code, response);
     if (!error) {
+      if (debug) {
+        console.log('[auth/callback] OK', {
+          setCookies: response.cookies.getAll().map((c) => c.name),
+          redirectTo: targetUrl.toString(),
+        });
+      }
       return response;
     }
     console.error('[auth/callback] exchangeCode error:', error.message, error);
