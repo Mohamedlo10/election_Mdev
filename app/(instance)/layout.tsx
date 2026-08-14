@@ -78,12 +78,14 @@ function InstanceLayoutContent({ children }: { children: ReactNode }) {
     );
   }
 
-  // Les votants n'ont pas besoin de la sidebar - ils voient uniquement la page de vote
-  const isVoter = authUser.role === 'voter';
+  // Déterminer si l'utilisateur est administrateur sur CETTE instance spécifique
+  const isSuperAdmin = authUser.role === 'super_admin';
+  const isAdminOnThisInstance = isSuperAdmin || authUser.admin_instances?.some(i => i.instance_id === instanceId);
+  const isVoterOnThisInstance = !isAdminOnThisInstance;
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {isVoter ? (
+      {isVoterOnThisInstance ? (
         <header className="bg-white border-b border-gray-100 sticky top-0 z-10 shadow-sm">
           <div className="max-w-6xl mx-auto px-4 sm:px-6 py-3 flex items-center justify-between">
             <Link
@@ -113,7 +115,7 @@ function InstanceLayoutContent({ children }: { children: ReactNode }) {
       ) : (
         <InstanceSidebar instanceId={instanceId} />
       )}
-      <main className={`transition-all duration-300 p-4 sm:p-6 ${isVoter ? '' : 'lg:ml-64 pt-16 lg:pt-6'}`}>
+      <main className={`transition-all duration-300 p-4 sm:p-6 ${isVoterOnThisInstance ? '' : 'lg:ml-64 pt-16 lg:pt-6'}`}>
         {children}
       </main>
     </div>

@@ -12,6 +12,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useInstance } from '@/contexts/InstanceContext';
 import { getCandidates } from '@/lib/services/candidate.service';
 import { createVote, getCategoriesWithVoteStatus, getInstanceResults } from '@/lib/services/vote.service';
+import { createClient } from '@/lib/supabase/client';
 import type { Candidate, CategoryResults } from '@/types';
 
 interface CategoryWithStatus {
@@ -32,13 +33,17 @@ export default function InstanceVotePage() {
   const instanceId = params.instanceId as string;
   const { authUser, signOut } = useAuth();
   const { currentInstance } = useInstance();
-  const isVoter = authUser?.role === 'voter';
+
+  const isSuperAdmin = authUser?.role === 'super_admin';
+  const isAdminOnThisInstance = isSuperAdmin || authUser?.admin_instances?.some(i => i.instance_id === instanceId);
+  const isVoter = !isAdminOnThisInstance;
 
   const [categories, setCategories] = useState<CategoryWithStatus[]>([]);
   const [categoryCandidates, setCategoryCandidates] = useState<CategoryCandidates>({});
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [selectedCategory, setSelectedCategory] = useState<CategoryWithStatus | null>(null);
   const [selectedCandidate, setSelectedCandidate] = useState<Candidate | null>(null);
+  const [activeVoterId, setActiveVoterId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [voting, setVoting] = useState(false);
   const [error, setError] = useState('');
@@ -50,7 +55,7 @@ export default function InstanceVotePage() {
     if (currentInstance) {
       if (currentInstance.status === 'completed') {
         loadResults();
-      } else if (authUser?.voter?.id) {
+      } else if (authUser) {
         loadData();
       }
     }
@@ -58,6 +63,7 @@ export default function InstanceVotePage() {
 
   async function loadData() {
     setLoading(true);
+    setError('');
 
     // Verifier si l'election est active
     if (currentInstance?.status !== 'active') {
@@ -66,10 +72,34 @@ export default function InstanceVotePage() {
       return;
     }
 
+    // Résoudre le voterId pour cette instance
+    let voterId = authUser?.voter_instances?.find(i => i.instance_id === instanceId)?.voter_id
+      || (authUser?.voter?.instance_id === instanceId ? authUser.voter.id : null);
+
+    if (!voterId && authUser?.id) {
+      const supabase = createClient();
+      const { data: voterData } = await supabase
+        .from('voters')
+        .select('id')
+        .eq('instance_id', instanceId)
+        .eq('auth_uid', authUser.id)
+        .maybeSingle();
+
+      voterId = voterData?.id || null;
+    }
+
+    if (!voterId) {
+      setError('Vous n\'êtes pas inscrit comme votant sur cette élection.');
+      setLoading(false);
+      return;
+    }
+
+    setActiveVoterId(voterId);
+
     // Charger les categories avec statut de vote
     const catResult = await getCategoriesWithVoteStatus(
       instanceId,
-      authUser!.voter!.id
+      voterId
     );
 
     if (catResult.success && catResult.data) {
@@ -90,6 +120,8 @@ export default function InstanceVotePage() {
 
       setCategoryCandidates(allCandidates);
       setExpandedCategories(expanded);
+    } else {
+      setError(catResult.error || 'Erreur lors du chargement des catégories');
     }
 
     setLoading(false);
@@ -124,11 +156,11 @@ export default function InstanceVotePage() {
   }
 
   async function handleVote() {
-    if (!selectedCategory || !selectedCandidate || !authUser?.voter?.id) return;
+    if (!selectedCategory || !selectedCandidate || !activeVoterId) return;
 
     setVoting(true);
     const result = await createVote({
-      voter_id: authUser.voter.id,
+      voter_id: activeVoterId,
       candidate_id: selectedCandidate.id,
       category_id: selectedCategory.id,
       instance_id: instanceId,

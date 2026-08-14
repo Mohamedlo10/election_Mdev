@@ -49,6 +49,26 @@ export async function GET() {
       .eq('role', 'super_admin')
       .maybeSingle();
 
+    // Auto-lier les votants et rôles par email si nécessaire
+    if (user.email) {
+      const normalizedEmail = user.email.toLowerCase().trim();
+      await adminClient
+        .from('voters')
+        .update({
+          auth_uid: user.id,
+          is_registered: true,
+          registered_at: new Date().toISOString(),
+        })
+        .eq('email', normalizedEmail)
+        .or(`auth_uid.is.null,auth_uid.neq.${user.id}`);
+
+      await adminClient
+        .from('users_roles')
+        .update({ user_id: user.id })
+        .eq('email', normalizedEmail)
+        .or(`user_id.is.null,user_id.neq.${user.id}`);
+    }
+
     if (superAdminData) {
       return NextResponse.json({
         id: user.id,
@@ -68,7 +88,6 @@ export async function GET() {
 
     if (instancesError) {
       console.error('[API /me] get_user_instances error:', instancesError);
-      // Fallback : essayer l'ancienne logique pour ne pas bloquer
     }
 
     const allInstances: UserInstanceSummary[] = (instancesData || []).map((row: {

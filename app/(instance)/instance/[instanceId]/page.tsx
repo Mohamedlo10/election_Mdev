@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useInstance } from '@/contexts/InstanceContext';
 import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/Card';
@@ -27,6 +27,7 @@ interface InstanceStats {
 
 export default function InstanceDashboardPage() {
   const params = useParams();
+  const router = useRouter();
   const instanceId = params.instanceId as string;
   const { authUser } = useAuth();
   const { currentInstance } = useInstance();
@@ -38,6 +39,22 @@ export default function InstanceDashboardPage() {
     totalVotes: 0,
   });
   const [loading, setLoading] = useState(true);
+
+  // Si l'utilisateur n'est pas admin sur cette instance, le rediriger vers la page de vote
+  useEffect(() => {
+    if (authUser && currentInstance) {
+      const isSuperAdmin = authUser.role === 'super_admin';
+      const isAdminOnThisInstance = isSuperAdmin || authUser.admin_instances?.some(i => i.instance_id === instanceId);
+
+      if (!isAdminOnThisInstance) {
+        if (currentInstance.status === 'completed') {
+          router.replace(`/instance/${instanceId}/results`);
+        } else {
+          router.replace(`/instance/${instanceId}/vote`);
+        }
+      }
+    }
+  }, [authUser, currentInstance, instanceId, router]);
 
   useEffect(() => {
     async function loadStats() {
