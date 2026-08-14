@@ -69,6 +69,21 @@ function clearStorage() {
   } catch { /* ignore */ }
 }
 
+/**
+ * Suppression des cookies de session côté navigateur.
+ * Indispensable à la déconnexion : si `supabase.auth.signOut()` traîne ou échoue,
+ * les cookies subsistent et le serveur nous renverrait aussitôt sur le dashboard.
+ */
+function clearAuthCookies() {
+  if (typeof document === 'undefined') return;
+  document.cookie.split(';').forEach((cookie) => {
+    const name = cookie.split('=')[0]?.trim();
+    if (!name || !name.startsWith('sb-')) return;
+    document.cookie = `${name}=; Max-Age=0; path=/`;
+    document.cookie = `${name}=; Max-Age=0; path=/; domain=${window.location.hostname}`;
+  });
+}
+
 /** Fetch avec timeout garanti */
 async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutMs: number): Promise<Response> {
   const controller = new AbortController();
@@ -291,12 +306,36 @@ export function AuthProvider({
     return { error: null };
   };
 
+  /**
+   * Déconnexion garantie sans dépendance au réseau.
+   * `supabase.auth.signOut()` peut rester en attente indéfiniment (verrou
+   * navigator.locks partagé entre onglets, token expiré, POST /logout sans
+   * timeout) : on vide donc l'état local d'abord, et la révocation distante est
+   * bornée dans le temps. Cette fonction résout toujours.
+   */
   const signOut = async () => {
-    await supabase.auth.signOut();
+    // 1. État local et stockage vidés immédiatement
     setAuthUser(null);
+    setUser(null);
+    setSession(null);
     setAdminInstances([]);
     setVoterInstances([]);
+    setHasMultipleContexts(false);
+    setHasNoRole(false);
     clearStorage();
+    clearAuthCookies();
+
+    // 2. Révocation distante + purge des cookies serveur, sans jamais bloquer
+    await Promise.race([
+      Promise.allSettled([
+        supabase.auth.signOut({ scope: 'global' }),
+        fetch('/api/auth/signout', { method: 'POST' }),
+      ]),
+      new Promise((resolve) => setTimeout(resolve, 1500)),
+    ]);
+
+    // 3. Les cookies ont pu être réécrits par un rafraîchissement concurrent
+    clearAuthCookies();
   };
 
   return (

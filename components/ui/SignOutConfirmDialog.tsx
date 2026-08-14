@@ -19,11 +19,11 @@ export default function SignOutConfirmDialog({ isOpen, onClose }: SignOutConfirm
     setIsSigningOut(true);
     try {
       await signOut();
-      window.location.href = '/login';
     } catch (error) {
       console.error('Sign out error:', error);
-      setIsSigningOut(false);
-      onClose();
+    } finally {
+      // La redirection a lieu dans tous les cas : l'état local est déjà vidé
+      window.location.href = '/login';
     }
   };
 

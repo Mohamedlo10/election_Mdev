@@ -1,11 +1,13 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
+const TIMEOUT_MESSAGE = 'Supabase request timeout';
+
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
     promise,
     new Promise<T>((_, reject) =>
-      setTimeout(() => reject(new Error('Supabase request timeout')), ms)
+      setTimeout(() => reject(new Error(TIMEOUT_MESSAGE)), ms)
     ),
   ]);
 }
@@ -132,8 +134,10 @@ export async function updateSession(request: NextRequest) {
         data: { user },
       } = await withTimeout(supabase.auth.getUser(), 2500); // 2.5 secondes max
       isAuthenticated = Boolean(user);
-    } catch {
-      authCheckFailed = true;
+    } catch (e) {
+      // Seul un timeout réseau justifie de laisser passer : une erreur d'auth
+      // (cookie corrompu, token révoqué) doit bien mener à /login.
+      authCheckFailed = e instanceof Error && e.message === TIMEOUT_MESSAGE;
     }
   }
 

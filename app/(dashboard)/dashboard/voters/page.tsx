@@ -1,6 +1,8 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import Link from 'next/link';
+import * as XLSX from 'xlsx';
 import {
   Plus,
   UserCheck,
@@ -234,14 +236,15 @@ export default function VotersPage() {
   }
 
   function downloadTemplate() {
-    const template = 'full_name,email\nJean Dupont,jean@exemple.com\nMarie Martin,marie@exemple.com';
-    const blob = new Blob([template], { type: 'text/csv' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'template_votants.csv';
-    a.click();
-    URL.revokeObjectURL(url);
+    const data = [
+      ['full_name', 'email'],
+      ['Jean Dupont', 'jean@exemple.com'],
+      ['Marie Martin', 'marie@exemple.com']
+    ];
+    const ws = XLSX.utils.aoa_to_sheet(data);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Template");
+    XLSX.writeFile(wb, "template_votants.xlsx");
   }
 
   const instanceOptions = instances.map((i) => ({

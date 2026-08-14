@@ -348,14 +348,8 @@ export default function DashboardPage() {
             </div>
             <h2 className="text-lg font-bold text-gray-900 mb-2">Bienvenue sur votre Espace !</h2>
             <p className="text-gray-500 text-sm mb-6">
-              Vous n&apos;avez encore aucune élection associée à votre compte. Vous pouvez créer votre premier scrutin dès maintenant.
+              Vous n&apos;avez encore aucune élection associée à votre compte. Veuillez patienter jusqu&apos;à ce qu&apos;un administrateur vous ajoute à une élection.
             </p>
-            <Link
-              href="/admin-setup"
-              className="inline-flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-medium text-sm text-white bg-theme-primary hover:bg-theme-primary-dark transition-colors shadow-sm"
-            >
-              + Créer ma première élection
-            </Link>
           </div>
         )}
       </main>
