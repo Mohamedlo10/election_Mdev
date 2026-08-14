@@ -21,6 +21,27 @@ export async function createVote(vote: CreateVote): Promise<ApiResponse<Vote>> {
   return { data: data as Vote, error: null, success: true };
 }
 
+// Créer plusieurs votes en une seule fois (sélection multiple validée en un clic)
+export async function createMultipleVotes(votes: CreateVote[]): Promise<ApiResponse<Vote[]>> {
+  if (!votes || votes.length === 0) {
+    return { data: [], error: null, success: true };
+  }
+
+  const { data, error } = await supabase
+    .from('votes')
+    .insert(votes)
+    .select();
+
+  if (error) {
+    if (error.code === '23505') {
+      return { data: null, error: 'Vous avez déjà voté pour une ou plusieurs catégories sélectionnées', success: false };
+    }
+    return { data: null, error: error.message, success: false };
+  }
+
+  return { data: data as Vote[], error: null, success: true };
+}
+
 // Obtenir les votes d'un votant
 export async function getVoterVotes(voterId: string): Promise<ApiResponse<VoteWithDetails[]>> {
   const { data, error } = await supabase
