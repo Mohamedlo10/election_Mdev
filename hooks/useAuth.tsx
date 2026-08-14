@@ -22,42 +22,20 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const STORAGE_KEY = 'esea_auth_user';
-const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
-const FETCH_TIMEOUT_MS = 6000; // 6 secondes max pour l'API
+const FETCH_TIMEOUT_MS = 6000; // 6 secondes max pour /api/auth/me
+const SAFETY_TIMEOUT_MS = 4000; // ne jamais rester bloqué sur l'écran de chargement
+const LEGACY_STORAGE_KEY = 'esea_auth_user';
 
-interface CachedUser {
-  authUser: AuthUser;
-  timestamp: number;
-}
-
-function getFromStorage(): CachedUser | null {
-  if (typeof window === 'undefined') return null;
-  try {
-    const stored = localStorage.getItem(STORAGE_KEY);
-    if (!stored) return null;
-    const cached: CachedUser = JSON.parse(stored);
-    if (Date.now() - cached.timestamp > CACHE_DURATION) {
-      localStorage.removeItem(STORAGE_KEY);
-      return null;
-    }
-    return cached;
-  } catch {
-    return null;
-  }
-}
-
-function saveToStorage(authUser: AuthUser) {
+/**
+ * Purge du stockage local.
+ * Le profil n'est plus mis en cache ici : il est injecté par le serveur au
+ * chargement et conservé en mémoire ensuite. On nettoie donc uniquement les
+ * reliquats de l'ancienne version et les clés Supabase orphelines.
+ */
+function clearStoredAuth() {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ authUser, timestamp: Date.now() }));
-  } catch { /* ignore */ }
-}
-
-function clearStorage() {
-  if (typeof window === 'undefined') return;
-  try {
-    localStorage.removeItem(STORAGE_KEY);
+    localStorage.removeItem(LEGACY_STORAGE_KEY);
     const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -65,7 +43,7 @@ function clearStorage() {
         keysToRemove.push(key);
       }
     }
-    keysToRemove.forEach(key => localStorage.removeItem(key));
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
   } catch { /* ignore */ }
 }
 
@@ -105,41 +83,55 @@ export function AuthProvider({
   initialUser?: User | null;
   initialAuthUser?: AuthUser | null;
 }) {
-  // Priorité aux données serveur, puis au cache local, pour supprimer tout flash de chargement
-  const cachedInitial = typeof window !== 'undefined' ? getFromStorage() : null;
-  const seededAuthUser = initialAuthUser ?? cachedInitial?.authUser ?? null;
-
   const [user, setUser] = useState<User | null>(initialUser);
   const [session, setSession] = useState<Session | null>(null);
-  const [authUser, setAuthUser] = useState<AuthUser | null>(() => seededAuthUser);
-  const [loading, setLoading] = useState<boolean>(() => (initialUser ? false : !cachedInitial));
+  const [authUser, setAuthUser] = useState<AuthUser | null>(initialAuthUser);
+  const [loading, setLoading] = useState<boolean>(!initialUser);
   const [hasNoRole, setHasNoRole] = useState(false);
-  const [adminInstances, setAdminInstances] = useState<UserInstanceSummary[]>(() => seededAuthUser?.admin_instances ?? []);
-  const [voterInstances, setVoterInstances] = useState<UserInstanceSummary[]>(() => seededAuthUser?.voter_instances ?? []);
-  const [hasMultipleContexts, setHasMultipleContexts] = useState<boolean>(() => seededAuthUser?.has_multiple_contexts ?? false);
+  const [adminInstances, setAdminInstances] = useState<UserInstanceSummary[]>(initialAuthUser?.admin_instances ?? []);
+  const [voterInstances, setVoterInstances] = useState<UserInstanceSummary[]>(initialAuthUser?.voter_instances ?? []);
+  const [hasMultipleContexts, setHasMultipleContexts] = useState<boolean>(initialAuthUser?.has_multiple_contexts ?? false);
 
   const supabase = createClient();
-  const isFetchingRef = useRef(false);
+  const sessionRef = useRef<Session | null>(null);
+  const authUserRef = useRef<AuthUser | null>(initialAuthUser);
+  const inFlightRef = useRef<Promise<AuthUser | null> | null>(null);
 
-  const fetchUserRole = useCallback(async (): Promise<AuthUser | null> => {
-    if (isFetchingRef.current) return null;
-    isFetchingRef.current = true;
+  const applyAuthUser = useCallback((next: AuthUser | null) => {
+    authUserRef.current = next;
+    setAuthUser(next);
+    setAdminInstances(next?.admin_instances ?? []);
+    setVoterInstances(next?.voter_instances ?? []);
+    setHasMultipleContexts(next?.has_multiple_contexts ?? false);
+  }, []);
 
-    try {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
-      const headers: Record<string, string> = {};
-      if (currentSession?.access_token) {
-        headers['Authorization'] = `Bearer ${currentSession.access_token}`;
-      }
+  /**
+   * Récupère le profil auprès de /api/auth/me.
+   *
+   * Aucun appel à `supabase.auth` ici : chaque méthode du client d'auth prend le
+   * verrou `navigator.locks` partagé, celui-là même par lequel passe le token de
+   * toutes les requêtes PostgREST. Le jeton est lu dans la session déjà reçue par
+   * l'écouteur d'événements ; à défaut, la route lit les cookies.
+   *
+   * Les appels concurrents partagent la même requête : renvoyer `null` au second
+   * appelant effaçait le profil et figeait l'écran.
+   */
+  const fetchProfile = useCallback(async (): Promise<AuthUser | null> => {
+    if (inFlightRef.current) return inFlightRef.current;
 
-      const response = await fetchWithTimeout('/api/auth/me', { headers }, FETCH_TIMEOUT_MS);
-      if (!response.ok) {
-        return null;
-      }
-      const data = await response.json();
+    const request = (async (): Promise<AuthUser | null> => {
+      try {
+        const headers: Record<string, string> = {};
+        const token = sessionRef.current?.access_token;
+        if (token) headers['Authorization'] = `Bearer ${token}`;
 
-      if (data && data.role) {
-        const authUserData: AuthUser = {
+        const response = await fetchWithTimeout('/api/auth/me', { headers }, FETCH_TIMEOUT_MS);
+        if (!response.ok) return null;
+
+        const data = await response.json();
+        if (!data?.role) return null;
+
+        return {
           id: data.id,
           email: data.email,
           role: data.role as UserRole,
@@ -150,136 +142,83 @@ export function AuthProvider({
           has_multiple_contexts: data.has_multiple_contexts ?? false,
           no_instance_yet: data.no_instance_yet ?? false,
         };
-
-        setAdminInstances(data.admin_instances ?? []);
-        setVoterInstances(data.voter_instances ?? []);
-        setHasMultipleContexts(data.has_multiple_contexts ?? false);
-
-        return authUserData;
+      } catch (error) {
+        console.warn('[Auth] chargement du profil:', error);
+        return null;
+      } finally {
+        inFlightRef.current = null;
       }
+    })();
 
-      return null;
-    } catch (error) {
-      console.warn('[Auth] fetchUserRole:', error);
-      return null;
-    } finally {
-      isFetchingRef.current = false;
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    inFlightRef.current = request;
+    return request;
   }, []);
 
+  const loadProfile = useCallback(async () => {
+    const profile = await fetchProfile();
+    applyAuthUser(profile);
+    setHasNoRole(profile === null);
+    setLoading(false);
+  }, [fetchProfile, applyAuthUser]);
+
   const refreshUser = useCallback(async () => {
-    clearStorage();
-    const userRole = await fetchUserRole();
-    if (userRole) {
-      setAuthUser(userRole);
-      setHasNoRole(false);
-      saveToStorage(userRole);
-    } else {
-      setHasNoRole(true);
-    }
-  }, [fetchUserRole]);
+    await loadProfile();
+  }, [loadProfile]);
 
   useEffect(() => {
     let isMounted = true;
 
-    const initAuth = async () => {
-      try {
-        const { data: { session: currentSession } } = await supabase.auth.getSession();
-        if (!isMounted) return;
+    // Filet de sécurité : si aucun événement d'auth n'arrive, on ne reste pas
+    // bloqué indéfiniment sur l'écran de chargement.
+    const safety = setTimeout(() => {
+      if (isMounted) setLoading(false);
+    }, SAFETY_TIMEOUT_MS);
 
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
+    // `INITIAL_SESSION` est émis dès l'abonnement : inutile d'appeler getSession()
+    // au montage, ce qui économise une prise de verrou supplémentaire.
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      if (!isMounted) return;
 
-        if (currentSession?.user) {
-          // Le serveur a déjà résolu le profil de cet utilisateur : rien à recharger
-          if (initialAuthUser && initialAuthUser.id === currentSession.user.id) {
-            saveToStorage(initialAuthUser);
-            setHasNoRole(false);
-            return;
-          }
+      sessionRef.current = newSession;
+      setSession(newSession);
+      setUser(newSession?.user ?? null);
 
-          const cached = getFromStorage();
-          const isCacheValid = cached &&
-            cached.authUser.id === currentSession.user.id &&
-            Date.now() - cached.timestamp < CACHE_DURATION;
-
-          if (isCacheValid) {
-            setAuthUser(cached.authUser);
-            setAdminInstances(cached.authUser.admin_instances ?? []);
-            setVoterInstances(cached.authUser.voter_instances ?? []);
-            setHasMultipleContexts(cached.authUser.has_multiple_contexts ?? false);
-            setHasNoRole(false);
-          } else {
-            const userRole = await fetchUserRole();
-            if (!isMounted) return;
-            if (userRole) {
-              setAuthUser(userRole);
-              setHasNoRole(false);
-              saveToStorage(userRole);
-            } else {
-              setAuthUser(null);
-              setHasNoRole(true);
-            }
-          }
-        } else {
-          setAuthUser(null);
-          setHasNoRole(false);
-        }
-      } catch (err) {
-        console.error('[Auth] Init error:', err);
-      } finally {
-        if (isMounted) setLoading(false);
+      if (event === 'SIGNED_OUT' || !newSession?.user) {
+        applyAuthUser(null);
+        setHasNoRole(false);
+        setLoading(false);
+        return;
       }
-    };
 
-    initAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
-        if (!isMounted) return;
-        setSession(newSession);
-        setUser(newSession?.user ?? null);
-
-        if (event === 'SIGNED_IN' && newSession?.user) {
-          // Vérifier si le cache actuel correspond déjà
-          const cached = getFromStorage();
-          if (cached && cached.authUser.id === newSession.user.id) {
-            setAuthUser(cached.authUser);
-            setAdminInstances(cached.authUser.admin_instances ?? []);
-            setVoterInstances(cached.authUser.voter_instances ?? []);
-            setHasMultipleContexts(cached.authUser.has_multiple_contexts ?? false);
-            setHasNoRole(false);
-            setLoading(false);
-            return;
-          }
-
-          const userRole = await fetchUserRole();
-          if (!isMounted) return;
-          if (userRole) {
-            setAuthUser(userRole);
-            setHasNoRole(false);
-            saveToStorage(userRole);
-          } else {
-            setAuthUser(null);
-            setHasNoRole(true);
-          }
-          setLoading(false);
-        } else if (event === 'SIGNED_OUT') {
-          setAuthUser(null);
-          setHasNoRole(false);
-          clearStorage();
-          setLoading(false);
-        }
+      // Profil déjà chargé pour cet utilisateur (injection serveur ou état en
+      // mémoire) : rien à refaire, notamment sur TOKEN_REFRESHED.
+      if (authUserRef.current?.id === newSession.user.id) {
+        setLoading(false);
+        return;
       }
-    );
+
+      if (event === 'INITIAL_SESSION' || event === 'SIGNED_IN' || event === 'USER_UPDATED') {
+        // Profil pas encore connu : on affiche l'écran de chargement plutôt que
+        // l'état intermédiaire « session sans profil ».
+        setLoading(true);
+        // ⚠️ Ce callback s'exécute AVEC le verrou d'authentification tenu
+        // (_notifyAllSubscribers est appelé depuis _acquireLock, qui draine la
+        // file d'attente avant de relâcher). Un appel réseau ici gèle toutes les
+        // requêtes de l'application, puisque chaque requête PostgREST résout son
+        // token via getSession() — donc via ce même verrou. On diffère d'un tick
+        // pour être hors du verrou avant de charger le profil.
+        setTimeout(() => {
+          if (isMounted) void loadProfile();
+        }, 0);
+      }
+    });
 
     return () => {
       isMounted = false;
+      clearTimeout(safety);
       subscription.unsubscribe();
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [supabase, applyAuthUser, loadProfile]);
 
   const signIn = async (email: string, password: string) => {
     const { error } = await supabase.auth.signInWithPassword({ email, password });
@@ -315,14 +254,12 @@ export function AuthProvider({
    */
   const signOut = async () => {
     // 1. État local et stockage vidés immédiatement
-    setAuthUser(null);
+    applyAuthUser(null);
     setUser(null);
     setSession(null);
-    setAdminInstances([]);
-    setVoterInstances([]);
-    setHasMultipleContexts(false);
     setHasNoRole(false);
-    clearStorage();
+    sessionRef.current = null;
+    clearStoredAuth();
     clearAuthCookies();
 
     // 2. Révocation distante + purge des cookies serveur, sans jamais bloquer
