@@ -4,7 +4,7 @@ import { ReactNode, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import SuperAdminSidebar from '@/components/sidebar/SuperAdminSidebar';
-import { Loader2 } from 'lucide-react';
+import LoadingScreen from '@/components/ui/LoadingScreen';
 
 export default function SuperAdminLayout({ children }: { children: ReactNode }) {
   const { authUser, loading, user } = useAuth();
@@ -31,14 +31,7 @@ export default function SuperAdminLayout({ children }: { children: ReactNode }) 
   }, [loading, authUser, user, router]);
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <Loader2 className="w-8 h-8 animate-spin text-green-500 mx-auto" />
-          <p className="mt-2 text-gray-600">Chargement...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Chargement de votre espace..." />;
   }
 
   // Ne pas afficher si pas super_admin

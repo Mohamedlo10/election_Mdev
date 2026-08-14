@@ -7,6 +7,7 @@ import { ArrowLeft, LogOut } from 'lucide-react';
 import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { InstanceProvider, useInstance } from '@/contexts/InstanceContext';
 import { InstanceSidebar } from '@/components/sidebar/InstanceSidebar';
+import LoadingScreen from '@/components/ui/LoadingScreen';
 
 function InstanceLayoutContent({ children }: { children: ReactNode }) {
   const params = useParams();
@@ -41,14 +42,7 @@ function InstanceLayoutContent({ children }: { children: ReactNode }) {
   }, [authLoading, instanceLoading, authUser, currentInstance, instanceId, router]);
 
   if (authLoading || instanceLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-theme-primary mx-auto"></div>
-          <p className="mt-4 text-gray-600">Chargement...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Chargement de l'élection..." />;
   }
 
   if (instanceError) {
@@ -68,14 +62,7 @@ function InstanceLayoutContent({ children }: { children: ReactNode }) {
   }
 
   if (!authUser) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-theme-primary mx-auto"></div>
-          <p className="mt-4 text-gray-600">Redirection...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Redirection en cours..." />;
   }
 
   // Déterminer si l'utilisateur est administrateur sur CETTE instance spécifique

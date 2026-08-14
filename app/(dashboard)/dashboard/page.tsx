@@ -5,11 +5,12 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import Button from '@/components/ui/Button';
+import LoadingScreen from '@/components/ui/LoadingScreen';
 import type { UserInstanceSummary } from '@/types';
 import {
   Shield, Vote, Settings, Users, BarChart3,
   ChevronRight, Clock, CheckCircle, PauseCircle,
-  Archive, FileEdit, Loader2, User, LogOut
+  Archive, FileEdit, User, LogOut
 } from 'lucide-react';
 
 // ─── Composants de badge de statut ──────────────────────────────────────────
@@ -212,14 +213,7 @@ export default function DashboardPage() {
 
   // ─── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <Loader2 className="w-10 h-10 animate-spin text-green-500 mx-auto" />
-          <p className="mt-3 text-gray-500 text-sm">Chargement de votre espace...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Chargement de votre espace..." />;
   }
 
   // Si l'utilisateur est connecté mais les données n'ont pas pu être chargées
