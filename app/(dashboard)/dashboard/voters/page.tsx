@@ -1,8 +1,7 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
-import * as XLSX from 'xlsx';
 import {
   Plus,
   UserCheck,
@@ -35,7 +34,8 @@ import {
   getVotersStats,
 } from '@/lib/services/voter.service';
 import type { Voter, ElectionInstance, VoterImport } from '@/types';
-import ImportHelpModal from '@/components/ui/ImportHelpModal';
+import ImportVotersModal from '@/components/ui/ImportVotersModal';
+import { downloadVoterTemplate } from '@/lib/utils/voterTemplates';
 
 export default function VotersPage() {
   const { authUser } = useAuth();
@@ -52,7 +52,8 @@ export default function VotersPage() {
   const [showEditModal, setShowEditModal] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
-  const [showHelpModal, setShowHelpModal] = useState(false);
+  const [showImportPanel, setShowImportPanel] = useState(false);
+  const [importPanelTab, setImportPanelTab] = useState<'import' | 'info'>('import');
   const [selectedVoter, setSelectedVoter] = useState<Voter | null>(null);
   const [actionMenuId, setActionMenuId] = useState<string | null>(null);
 
@@ -60,8 +61,6 @@ export default function VotersPage() {
   const [importData, setImportData] = useState<VoterImport[]>([]);
   const [importResult, setImportResult] = useState<{ imported: number; errors: string[] } | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     loadInstances();
@@ -183,21 +182,21 @@ export default function VotersPage() {
     setSubmitting(false);
   }
 
-  async function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  function openImportPanel(tab: 'import' | 'info') {
+    setImportPanelTab(tab);
+    setShowImportPanel(true);
+  }
 
+  /** Fichier choisi dans la modale d'import : on passe à l'aperçu avant validation */
+  async function handleFileChosen(file: File) {
     try {
       const data = await parseExcelFile(file);
       setImportData(data);
       setImportResult(null);
+      setShowImportPanel(false);
       setShowImportModal(true);
     } catch {
       setError('Erreur lors de la lecture du fichier');
-    }
-
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
     }
   }
 
@@ -235,18 +234,6 @@ export default function VotersPage() {
     setActionMenuId(null);
   }
 
-  function downloadTemplate() {
-    const data = [
-      ['full_name', 'email'],
-      ['Jean Dupont', 'jean@exemple.com'],
-      ['Marie Martin', 'marie@exemple.com']
-    ];
-    const ws = XLSX.utils.aoa_to_sheet(data);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, "Template");
-    XLSX.writeFile(wb, "template_votants.xlsx");
-  }
-
   const instanceOptions = instances.map((i) => ({
     value: i.id,
     label: i.name,
@@ -260,24 +247,17 @@ export default function VotersPage() {
           <p className="text-gray-600 mt-1">Gérez la liste des votants autorisés</p>
         </div>
         <div className="flex items-center gap-2">
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleFileSelect}
-            accept=".xlsx,.xls,.csv"
-            className="hidden"
-          />
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setShowHelpModal(true)}
+            onClick={() => openImportPanel('info')}
             title="Aide à l'import"
           >
             <HelpCircle className="w-5 h-5" />
           </Button>
           <Button
             variant="outline"
-            onClick={() => fileInputRef.current?.click()}
+            onClick={() => openImportPanel('import')}
             disabled={!selectedInstanceId}
           >
             <Upload className="w-4 h-4 mr-2" />
@@ -384,7 +364,7 @@ export default function VotersPage() {
             </p>
             {!searchTerm && (
               <div className="flex items-center justify-center gap-3">
-                <Button variant="outline" onClick={() => fileInputRef.current?.click()}>
+                <Button variant="outline" onClick={() => openImportPanel('import')}>
                   <Upload className="w-4 h-4 mr-2" />
                   Importer
                 </Button>
@@ -605,11 +585,11 @@ export default function VotersPage() {
                   {importData.length} votant(s) trouvé(s) dans le fichier
                 </p>
                 <div className="flex items-center gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setShowHelpModal(true)}>
+                  <Button variant="ghost" size="sm" onClick={() => openImportPanel('info')}>
                     <HelpCircle className="w-4 h-4 mr-2" />
                     Aide
                   </Button>
-                  <Button variant="ghost" size="sm" onClick={downloadTemplate}>
+                  <Button variant="ghost" size="sm" onClick={() => downloadVoterTemplate('name_email')}>
                     <Download className="w-4 h-4 mr-2" />
                     Télécharger le template
                   </Button>
@@ -671,7 +651,12 @@ export default function VotersPage() {
       )}
 
       {/* Help Modal */}
-      <ImportHelpModal isOpen={showHelpModal} onClose={() => setShowHelpModal(false)} />
+      <ImportVotersModal
+          isOpen={showImportPanel}
+          onClose={() => setShowImportPanel(false)}
+          onFileSelected={handleFileChosen}
+          defaultTab={importPanelTab}
+        />
     </div>
   );
 }
