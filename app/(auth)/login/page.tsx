@@ -23,7 +23,7 @@ type Step = 'email' | 'password' | 'reset-sent' | 'waiting';
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { signIn } = useAuth();
+  const { signIn, user, loading: authLoading } = useAuth();
 
   const [step, setStep] = useState<Step>('email');
   const [email, setEmail] = useState('');
@@ -34,6 +34,13 @@ function LoginForm() {
   const [error, setError] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [instanceName, setInstanceName] = useState('');
+
+  // Si l'utilisateur est déjà connecté, rediriger directement vers le dashboard
+  useEffect(() => {
+    if (user && !authLoading) {
+      router.replace('/dashboard');
+    }
+  }, [user, authLoading, router]);
 
   // Vérifier automatiquement token_hash ou messages dans l'URL
   useEffect(() => {
