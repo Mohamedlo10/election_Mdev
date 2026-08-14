@@ -92,13 +92,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const supabase = createClient();
 
   const fetchUserRole = useCallback(async (): Promise<AuthUser | null> => {
-    console.log('[Auth] Fetching role via API...');
-
     try {
-      const response = await fetch('/api/auth/me');
-      const data = await response.json();
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      const headers: Record<string, string> = {};
+      if (currentSession?.access_token) {
+        headers['Authorization'] = `Bearer ${currentSession.access_token}`;
+      }
 
-      console.log('[Auth] API /me result:', { status: response.status, data });
+      const response = await fetch('/api/auth/me', { headers });
+      const data = await response.json();
 
       if (response.ok && data.role) {
         const authUserData: AuthUser = {
@@ -121,18 +123,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return authUserData;
       }
 
-      if (data.noRole) {
-        console.log('[Auth] No role found for user');
-        return null;
-      }
-
-      console.log('[Auth] API error:', data.error);
       return null;
     } catch (error) {
       console.error('[Auth] Fetch error:', error);
       return null;
     }
-  }, []);
+  }, [supabase]);
 
   const refreshUser = useCallback(async () => {
     const { data: { user: currentUser } } = await supabase.auth.getUser();

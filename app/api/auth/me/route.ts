@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { type NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createClient as createServerClient } from '@/lib/supabase/server';
 import type { UserInstanceSummary, UserRole } from '@/types';
@@ -26,32 +26,41 @@ const ROLE_PRIORITY: Record<string, number> = {
   voter: 5,
 };
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
-    // 1. Obtenir l'utilisateur authentifié via le cookie de session
-    const supabase = await createServerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json(
-        { error: 'Non authentifié' },
-        { status: 401 }
-      );
-    }
-
     const adminClient = createAdminClient();
 
-    // 2. Vérifier si c'est un super_admin (instance_id IS NULL dans users_roles)
-    const { data: superAdminData } = await adminClient
-      .from('users_roles')
-      .select('role, instance_id')
-      .eq('user_id', user.id)
-      .eq('role', 'super_admin')
-      .maybeSingle();
+    // 1. Obtenir l'utilisateur authentifié via cookie ou header Authorization
+    const supabase = await createServerClient();
+    let user = null;
 
-    // Auto-lier les votants et rôles par email si nécessaire
-    if (user.email) {
-      const normalizedEmail = user.email.toLowerCase().trim();
+    try {
+      const { data: authData } = await supabase.auth.getUser();
+      user = authData?.user ?? null;
+    } catch (e) {
+      console.warn('[API /me] Server cookie getUser warning:', e);
+    }
+
+    // Fallback header Authorization
+    if (!user) {
+      const authHeader = request.headers.get('authorization') || request.headers.get('Authorization');
+      if (authHeader?.startsWith('Bearer ')) {
+        const token = authHeader.substring(7);
+        const { data: tokenData, error: tokenError } = await adminClient.auth.getUser(token);
+        if (!tokenError && tokenData?.user) {
+          user = tokenData.user;
+        }
+      }
+    }
+
+    if (!user || !user.email) {
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
+    }
+
+    const normalizedEmail = user.email.toLowerCase().trim();
+
+    // 2. Auto-lier les votants et rôles par email si nécessaire
+    try {
       await adminClient
         .from('voters')
         .update({
@@ -67,7 +76,17 @@ export async function GET() {
         .update({ user_id: user.id })
         .eq('email', normalizedEmail)
         .or(`user_id.is.null,user_id.neq.${user.id}`);
+    } catch (linkErr) {
+      console.warn('[API /me] Auto-link warning:', linkErr);
     }
+
+    // 3. Vérifier si c'est un super_admin
+    const { data: superAdminData } = await adminClient
+      .from('users_roles')
+      .select('role, instance_id')
+      .or(`user_id.eq.${user.id},email.eq.${normalizedEmail}`)
+      .eq('role', 'super_admin')
+      .maybeSingle();
 
     if (superAdminData) {
       return NextResponse.json({
@@ -82,46 +101,130 @@ export async function GET() {
       });
     }
 
-    // 3. Récupérer toutes les instances via la fonction PostgreSQL (par user_id et par email)
-    const { data: instancesData, error: instancesError } = await adminClient
-      .rpc('get_user_instances', { p_user_id: user.id, p_email: user.email });
+    // 4. Récupérer toutes les instances (RPC avec fallback direct SQL)
+    let adminInstances: UserInstanceSummary[] = [];
+    let voterInstances: UserInstanceSummary[] = [];
 
-    if (instancesError) {
-      console.error('[API /me] get_user_instances error:', instancesError);
+    const { data: instancesData, error: instancesError } = await adminClient
+      .rpc('get_user_instances', { p_user_id: user.id, p_email: normalizedEmail });
+
+    if (!instancesError && Array.isArray(instancesData)) {
+      const allInstances: UserInstanceSummary[] = instancesData.map((row: {
+        context: string;
+        instance_id: string;
+        instance_name: string;
+        instance_status: string;
+        logo_url: string | null;
+        primary_color: string;
+        user_role: string;
+        voter_id: string | null;
+        is_registered: boolean | null;
+      }) => ({
+        context: row.context as 'admin_instance' | 'voter_instance',
+        instance_id: row.instance_id,
+        instance_name: row.instance_name,
+        instance_status: row.instance_status as UserInstanceSummary['instance_status'],
+        logo_url: row.logo_url,
+        primary_color: row.primary_color || '#22c55e',
+        role: row.user_role as UserRole,
+        voter_id: row.voter_id,
+        is_registered: row.is_registered,
+      }));
+
+      adminInstances = allInstances.filter((i) => i.context === 'admin_instance');
+      voterInstances = allInstances.filter((i) => i.context === 'voter_instance');
+    } else {
+      // Fallback SQL direct
+      const { data: rolesRows } = await adminClient
+        .from('users_roles')
+        .select(`
+          id,
+          role,
+          instance_id,
+          election_instances (
+            id,
+            name,
+            status,
+            logo_url,
+            primary_color
+          )
+        `)
+        .or(`user_id.eq.${user.id},email.eq.${normalizedEmail}`);
+
+      if (rolesRows) {
+        adminInstances = rolesRows
+          .filter((r) => r.role !== 'super_admin' && r.instance_id)
+          .map((r) => {
+            const inst = r.election_instances as unknown as {
+              id: string;
+              name: string;
+              status: string;
+              logo_url: string | null;
+              primary_color: string | null;
+            } | null;
+            return {
+              context: 'admin_instance' as const,
+              instance_id: r.instance_id!,
+              instance_name: inst?.name || 'Élection',
+              instance_status: (inst?.status || 'active') as UserInstanceSummary['instance_status'],
+              logo_url: inst?.logo_url || null,
+              primary_color: inst?.primary_color || '#22c55e',
+              role: r.role as UserRole,
+              voter_id: null,
+              is_registered: null,
+            };
+          });
+      }
+
+      const { data: voterRows } = await adminClient
+        .from('voters')
+        .select(`
+          id,
+          instance_id,
+          is_registered,
+          election_instances (
+            id,
+            name,
+            status,
+            logo_url,
+            primary_color
+          )
+        `)
+        .or(`auth_uid.eq.${user.id},email.eq.${normalizedEmail}`);
+
+      if (voterRows) {
+        voterInstances = voterRows
+          .filter((v) => v.instance_id)
+          .map((v) => {
+            const inst = v.election_instances as unknown as {
+              id: string;
+              name: string;
+              status: string;
+              logo_url: string | null;
+              primary_color: string | null;
+            } | null;
+            return {
+              context: 'voter_instance' as const,
+              instance_id: v.instance_id,
+              instance_name: inst?.name || 'Élection',
+              instance_status: (inst?.status || 'active') as UserInstanceSummary['instance_status'],
+              logo_url: inst?.logo_url || null,
+              primary_color: inst?.primary_color || '#22c55e',
+              role: 'voter' as UserRole,
+              voter_id: v.id,
+              is_registered: v.is_registered,
+            };
+          });
+      }
     }
 
-    const allInstances: UserInstanceSummary[] = (instancesData || []).map((row: {
-      context: string;
-      instance_id: string;
-      instance_name: string;
-      instance_status: string;
-      logo_url: string | null;
-      primary_color: string;
-      user_role: string;
-      voter_id: string | null;
-      is_registered: boolean | null;
-    }) => ({
-      context: row.context as 'admin_instance' | 'voter_instance',
-      instance_id: row.instance_id,
-      instance_name: row.instance_name,
-      instance_status: row.instance_status as UserInstanceSummary['instance_status'],
-      logo_url: row.logo_url,
-      primary_color: row.primary_color,
-      role: row.user_role as UserRole,
-      voter_id: row.voter_id,
-      is_registered: row.is_registered,
-    }));
-
-    const adminInstances = allInstances.filter(i => i.context === 'admin_instance');
-    const voterInstances = allInstances.filter(i => i.context === 'voter_instance');
     const hasMultipleContexts = adminInstances.length > 0 && voterInstances.length > 0;
 
-    // 4. Déterminer le rôle primaire (priorité : admin > manager > observer > voter)
-    let primaryRole: UserRole = 'voter';
+    // 5. Déterminer le rôle primaire
+    let primaryRole: UserRole = 'admin';
     let primaryInstanceId: string | null = null;
 
     if (adminInstances.length > 0) {
-      // Trier par priorité de rôle
       const sorted = [...adminInstances].sort(
         (a, b) => (ROLE_PRIORITY[a.role] ?? 99) - (ROLE_PRIORITY[b.role] ?? 99)
       );
@@ -132,20 +235,20 @@ export async function GET() {
       primaryInstanceId = voterInstances.length === 1 ? voterInstances[0].instance_id : null;
     }
 
-    // 5. Récupérer les données du votant si applicable (pour compatibilité ascendante)
+    // 6. Données votant si applicable
     let voterData = null;
     if (primaryRole === 'voter' && voterInstances.length === 1) {
       const { data } = await adminClient
         .from('voters')
         .select('*')
-        .eq('auth_uid', user.id)
+        .or(`auth_uid.eq.${user.id},email.eq.${normalizedEmail}`)
         .eq('instance_id', voterInstances[0].instance_id)
         .maybeSingle();
       voterData = data;
     }
 
-    // 6. Si aucune instance rattachée (ex: nouvellement inscrit) → retourner un statut propre avec no_instance_yet
-    if (allInstances.length === 0) {
+    // 7. Si aucune instance (nouveau compte sans élection)
+    if (adminInstances.length === 0 && voterInstances.length === 0) {
       return NextResponse.json({
         id: user.id,
         email: user.email,
@@ -169,12 +272,8 @@ export async function GET() {
       voter_instances: voterInstances,
       has_multiple_contexts: hasMultipleContexts,
     });
-
   } catch (error) {
     console.error('[API /me] Error:', error);
-    return NextResponse.json(
-      { error: 'Erreur serveur' },
-      { status: 500 }
-    );
+    return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }
