@@ -121,9 +121,5 @@ function InstanceLayoutWithProvider({ children }: { children: ReactNode }) {
 }
 
 export default function InstanceLayout({ children }: { children: ReactNode }) {
-  return (
-    <AuthProvider>
-      <InstanceLayoutWithProvider>{children}</InstanceLayoutWithProvider>
-    </AuthProvider>
-  );
+  return <InstanceLayoutWithProvider>{children}</InstanceLayoutWithProvider>;
 }

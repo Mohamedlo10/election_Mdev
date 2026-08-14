@@ -1,7 +1,6 @@
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
-// Fonction utilitaire pour créer une promesse avec timeout
 function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   return Promise.race([
     promise,
@@ -15,6 +14,24 @@ export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
   });
+
+  const pathname = request.nextUrl.pathname;
+  const isPublicRoute =
+    pathname === '/' ||
+    pathname === '/login' ||
+    pathname === '/register' ||
+    pathname === '/reset-password' ||
+    pathname.startsWith('/auth/') ||
+    pathname.startsWith('/api/');
+
+  // Détection rapide des cookies de session Supabase
+  const allCookies = request.cookies.getAll();
+  const hasSupabaseCookie = allCookies.some(c => c.name.startsWith('sb-') || c.name.includes('auth-token'));
+
+  // Optimisation de vitesse : si route publique sans cookies d'auth, passer immédiatement sans requête réseau
+  if (isPublicRoute && !hasSupabaseCookie && pathname !== '/login' && pathname !== '/register') {
+    return supabaseResponse;
+  }
 
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,31 +56,17 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  // IMPORTANT: Avoid writing any logic between createServerClient and
-  // supabase.auth.getUser(). A simple mistake could make it very hard to debug
-  // issues with users being randomly logged out.
-
   let user = null;
-  try {
-    const {
-      data: { user: authUser },
-    } = await withTimeout(supabase.auth.getUser(), 5000); // 5 secondes de timeout
-    user = authUser;
-  } catch (error) {
-    console.error('Middleware auth error:', error);
-    // Continuer sans utilisateur plutôt que de bloquer
-    user = null;
+  if (hasSupabaseCookie) {
+    try {
+      const {
+        data: { user: authUser },
+      } = await withTimeout(supabase.auth.getUser(), 2500); // 2.5 secondes max
+      user = authUser;
+    } catch {
+      user = null;
+    }
   }
-
-  // Routes publiques ou routes d'authentification (accessibles sans session active)
-  const pathname = request.nextUrl.pathname;
-  const isPublicRoute =
-    pathname === '/' ||
-    pathname === '/login' ||
-    pathname === '/register' ||
-    pathname === '/reset-password' ||
-    pathname.startsWith('/auth/') ||
-    pathname.startsWith('/api/');
 
   // Si pas connecté et route protégée
   if (!user && !isPublicRoute) {
@@ -86,19 +89,6 @@ export async function updateSession(request: NextRequest) {
     });
     return redirectResponse;
   }
-
-  // IMPORTANT: You *must* return the supabaseResponse object as it is.
-  // If you're creating a new response object with NextResponse.next() make sure to:
-  // 1. Pass the request in it, like so:
-  //    const myNewResponse = NextResponse.next({ request })
-  // 2. Copy over the cookies, like so:
-  //    myNewResponse.cookies.setAll(supabaseResponse.cookies.getAll())
-  // 3. Change the myNewResponse object to fit your needs, but avoid changing
-  //    the cookies!
-  // 4. Finally:
-  //    return myNewResponse
-  // If this is not done, you may be causing the browser and server to go out
-  // of sync and terminate the user's session prematurely!
 
   return supabaseResponse;
 }

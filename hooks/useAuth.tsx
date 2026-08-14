@@ -24,7 +24,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const STORAGE_KEY = 'esea_auth_user';
 const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
-const FETCH_TIMEOUT_MS = 8000; // 8 secondes max pour l'API
+const FETCH_TIMEOUT_MS = 6000; // 6 secondes max pour l'API
 
 interface CachedUser {
   authUser: AuthUser;
@@ -74,39 +74,46 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const response = await fetch(url, { ...options, signal: controller.signal });
-    return response;
+    return await fetch(url, { ...options, signal: controller.signal });
   } finally {
     clearTimeout(timer);
   }
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  // Initialisation immédiate depuis le cache pour supprimer tout flash de chargement
+  const cachedInitial = typeof window !== 'undefined' ? getFromStorage() : null;
+
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
-  const [authUser, setAuthUser] = useState<AuthUser | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(() => cachedInitial?.authUser ?? null);
+  const [loading, setLoading] = useState<boolean>(() => !cachedInitial);
   const [hasNoRole, setHasNoRole] = useState(false);
-  const [adminInstances, setAdminInstances] = useState<UserInstanceSummary[]>([]);
-  const [voterInstances, setVoterInstances] = useState<UserInstanceSummary[]>([]);
-  const [hasMultipleContexts, setHasMultipleContexts] = useState(false);
+  const [adminInstances, setAdminInstances] = useState<UserInstanceSummary[]>(() => cachedInitial?.authUser.admin_instances ?? []);
+  const [voterInstances, setVoterInstances] = useState<UserInstanceSummary[]>(() => cachedInitial?.authUser.voter_instances ?? []);
+  const [hasMultipleContexts, setHasMultipleContexts] = useState<boolean>(() => cachedInitial?.authUser.has_multiple_contexts ?? false);
 
-  // Instance Supabase stable — ne recrée jamais une nouvelle référence
-  const supabaseRef = useRef(createClient());
-  const supabase = supabaseRef.current;
+  const supabase = createClient();
+  const isFetchingRef = useRef(false);
 
   const fetchUserRole = useCallback(async (): Promise<AuthUser | null> => {
+    if (isFetchingRef.current) return null;
+    isFetchingRef.current = true;
+
     try {
-      const { data: { session: currentSession } } = await supabaseRef.current.auth.getSession();
+      const { data: { session: currentSession } } = await supabase.auth.getSession();
       const headers: Record<string, string> = {};
       if (currentSession?.access_token) {
         headers['Authorization'] = `Bearer ${currentSession.access_token}`;
       }
 
       const response = await fetchWithTimeout('/api/auth/me', { headers }, FETCH_TIMEOUT_MS);
+      if (!response.ok) {
+        return null;
+      }
       const data = await response.json();
 
-      if (response.ok && data.role) {
+      if (data && data.role) {
         const authUserData: AuthUser = {
           id: data.id,
           email: data.email,
@@ -128,8 +135,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       return null;
     } catch (error) {
-      console.error('[Auth] fetchUserRole error (timeout ou réseau):', error);
+      console.warn('[Auth] fetchUserRole:', error);
       return null;
+    } finally {
+      isFetchingRef.current = false;
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -147,12 +156,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [fetchUserRole]);
 
   useEffect(() => {
-    let cancelled = false;
+    let isMounted = true;
 
-    const getSession = async () => {
+    const initAuth = async () => {
       try {
         const { data: { session: currentSession } } = await supabase.auth.getSession();
-        if (cancelled) return;
+        if (!isMounted) return;
 
         setSession(currentSession);
         setUser(currentSession?.user ?? null);
@@ -171,7 +180,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setHasNoRole(false);
           } else {
             const userRole = await fetchUserRole();
-            if (cancelled) return;
+            if (!isMounted) return;
             if (userRole) {
               setAuthUser(userRole);
               setHasNoRole(false);
@@ -179,61 +188,62 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             } else {
               setAuthUser(null);
               setHasNoRole(true);
-              clearStorage();
             }
           }
         } else {
           setAuthUser(null);
           setHasNoRole(false);
-          clearStorage();
         }
-      } catch (e) {
-        console.error('[Auth] getSession error:', e);
+      } catch (err) {
+        console.error('[Auth] Init error:', err);
       } finally {
-        // ✅ setLoading(false) garanti quoi qu'il arrive
-        if (!cancelled) setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
-    getSession();
+    initAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
-        if (cancelled) return;
+        if (!isMounted) return;
         setSession(newSession);
         setUser(newSession?.user ?? null);
 
         if (event === 'SIGNED_IN' && newSession?.user) {
-          try {
-            clearStorage();
-            const userRole = await fetchUserRole();
-            if (cancelled) return;
-            if (userRole) {
-              setAuthUser(userRole);
-              setHasNoRole(false);
-              saveToStorage(userRole);
-            } else {
-              setAuthUser(null);
-              setHasNoRole(true);
-            }
-          } catch (e) {
-            console.error('[Auth] SIGNED_IN handler error:', e);
-          } finally {
-            // ✅ Toujours désactiver le loader, même si fetchUserRole échoue ou timeout
-            if (!cancelled) setLoading(false);
+          // Vérifier si le cache actuel correspond déjà
+          const cached = getFromStorage();
+          if (cached && cached.authUser.id === newSession.user.id) {
+            setAuthUser(cached.authUser);
+            setAdminInstances(cached.authUser.admin_instances ?? []);
+            setVoterInstances(cached.authUser.voter_instances ?? []);
+            setHasMultipleContexts(cached.authUser.has_multiple_contexts ?? false);
+            setHasNoRole(false);
+            setLoading(false);
+            return;
           }
+
+          const userRole = await fetchUserRole();
+          if (!isMounted) return;
+          if (userRole) {
+            setAuthUser(userRole);
+            setHasNoRole(false);
+            saveToStorage(userRole);
+          } else {
+            setAuthUser(null);
+            setHasNoRole(true);
+          }
+          setLoading(false);
         } else if (event === 'SIGNED_OUT') {
           setAuthUser(null);
           setHasNoRole(false);
           clearStorage();
-          if (!cancelled) setLoading(false);
+          setLoading(false);
         }
-        // INITIAL_SESSION, TOKEN_REFRESHED etc. → pas d'action sur loading
       }
     );
 
     return () => {
-      cancelled = true;
+      isMounted = false;
       subscription.unsubscribe();
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
