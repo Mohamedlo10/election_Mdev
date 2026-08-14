@@ -16,6 +16,29 @@ export async function updateSession(request: NextRequest) {
   });
 
   const pathname = request.nextUrl.pathname;
+
+  // Filet de sécurité OAuth : si Supabase renvoie le `code` PKCE sur une autre page
+  // que /auth/callback (cas classique quand la Redirect URL n'est pas whitelistée
+  // et que Supabase retombe sur la Site URL), on le réachemine vers le callback.
+  if (!pathname.startsWith('/auth/')) {
+    const oauthCode = request.nextUrl.searchParams.get('code');
+    // `error_code` / `error_description` = erreur renvoyée par Supabase/Google.
+    // On ne teste pas `error` seul : /login?error=... est notre propre message (boucle).
+    const oauthError =
+      pathname !== '/login' &&
+      (request.nextUrl.searchParams.has('error_code') ||
+        request.nextUrl.searchParams.has('error_description'));
+
+    if (oauthCode || oauthError) {
+      const callbackUrl = request.nextUrl.clone();
+      callbackUrl.pathname = '/auth/callback';
+      // On repart vers le dashboard depuis les pages d'entrée, sinon on reste sur place
+      const isEntryPage = pathname === '/' || pathname === '/login' || pathname === '/register';
+      callbackUrl.searchParams.set('next', isEntryPage ? '/dashboard' : pathname);
+      return NextResponse.redirect(callbackUrl);
+    }
+  }
+
   const isPublicRoute =
     pathname === '/' ||
     pathname === '/login' ||

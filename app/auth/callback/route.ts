@@ -2,43 +2,96 @@ import { type NextRequest, NextResponse } from 'next/server';
 import { createServerClient } from '@supabase/ssr';
 
 /**
+ * Origine réelle de la requête.
+ * Derrière un proxy (Vercel, Nginx…), `request.url` peut contenir le host interne :
+ * on privilégie donc les en-têtes forwardés. On n'utilise jamais NEXT_PUBLIC_APP_URL
+ * ici, sinon le développement local redirigerait vers la production.
+ */
+function getOrigin(request: NextRequest, fallbackOrigin: string): string {
+  const forwardedHost = request.headers.get('x-forwarded-host');
+  if (forwardedHost) {
+    const proto = request.headers.get('x-forwarded-proto') ?? 'https';
+    return `${proto}://${forwardedHost}`;
+  }
+  return fallbackOrigin;
+}
+
+function redirectToLogin(origin: string, message: string) {
+  const loginUrl = new URL('/login', origin);
+  loginUrl.searchParams.set('error', message);
+  return NextResponse.redirect(loginUrl);
+}
+
+/**
  * GET /auth/callback
- * Route de callback OAuth pour échanger le code contre une session Supabase et attacher les cookies.
+ * Route de callback OAuth : échange le code PKCE contre une session Supabase
+ * et attache les cookies de session sur la redirection.
  */
 export async function GET(request: NextRequest) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams, origin: requestOrigin } = new URL(request.url);
+  const origin = getOrigin(request, requestOrigin);
+
   const code = searchParams.get('code');
+  const providerError = searchParams.get('error');
+  const providerErrorDescription = searchParams.get('error_description');
   const next = searchParams.get('next') ?? '/dashboard';
 
-  const targetUrl = new URL(next.startsWith('/') ? next : `/${next}`, origin);
-  let response = NextResponse.redirect(targetUrl);
-
-  if (code) {
-    const supabase = createServerClient(
-      process.env.NEXT_PUBLIC_SUPABASE_URL!,
-      process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-      {
-        cookies: {
-          getAll() {
-            return request.cookies.getAll();
-          },
-          setAll(cookiesToSet) {
-            cookiesToSet.forEach(({ name, value, options }) => {
-              response.cookies.set(name, value, options);
-            });
-          },
-        },
-      }
+  // 1. Le fournisseur (Google) a refusé ou l'utilisateur a annulé
+  if (providerError) {
+    console.error('[auth/callback] provider error:', providerError, providerErrorDescription);
+    return redirectToLogin(
+      origin,
+      providerErrorDescription || 'Connexion Google annulée ou refusée.'
     );
+  }
 
+  const targetUrl = new URL(next.startsWith('/') ? next : `/${next}`, origin);
+  const response = NextResponse.redirect(targetUrl);
+
+  const supabase = createServerClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    {
+      cookies: {
+        getAll() {
+          return request.cookies.getAll();
+        },
+        setAll(cookiesToSet) {
+          cookiesToSet.forEach(({ name, value, options }) => {
+            response.cookies.set(name, value, options);
+          });
+        },
+      },
+    }
+  );
+
+  // 2. Échange du code PKCE contre une session
+  if (code) {
     const { error } = await supabase.auth.exchangeCodeForSession(code);
     if (!error) {
       return response;
     }
-    console.error('[auth/callback] exchangeCode error:', error);
+    console.error('[auth/callback] exchangeCode error:', error.message, error);
+
+    // Le code a pu déjà être consommé (double appel, refresh de la page) :
+    // si une session valide existe malgré tout, on laisse passer.
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      return response;
+    }
+
+    return redirectToLogin(
+      origin,
+      `Erreur lors de la connexion avec Google : ${error.message}`
+    );
   }
 
-  const loginUrl = new URL('/login', origin);
-  loginUrl.searchParams.set('error', 'Erreur lors de la connexion avec Google.');
-  return NextResponse.redirect(loginUrl);
+  // 3. Aucun code : session déjà établie ?
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    return response;
+  }
+
+  console.error('[auth/callback] aucun code ni session dans la requête:', request.url);
+  return redirectToLogin(origin, 'Erreur lors de la connexion avec Google.');
 }

@@ -15,7 +15,7 @@ interface AuthContextType {
   voterInstances: UserInstanceSummary[];
   hasMultipleContexts: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
-  signInWithGoogle: () => Promise<{ error: string | null }>;
+  signInWithGoogle: (next?: string) => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -255,12 +255,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null };
   };
 
-  const signInWithGoogle = async () => {
-    const origin = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || '');
+  const signInWithGoogle = async (next: string = '/dashboard') => {
+    // Toujours revenir sur l'origine courante (localhost en dev, domaine en prod)
+    const origin = typeof window !== 'undefined'
+      ? window.location.origin
+      : (process.env.NEXT_PUBLIC_APP_URL || '');
+
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${origin}/auth/callback?next=/dashboard`,
+        redirectTo: `${origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        queryParams: {
+          prompt: 'select_account',
+        },
       },
     });
     if (error) return { error: error.message };
