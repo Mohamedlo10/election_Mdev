@@ -9,7 +9,6 @@ import {
   Users,
   Vote,
   BarChart3,
-  CheckCircle,
   Clock,
   FolderTree,
   UserCheck,
@@ -22,7 +21,8 @@ interface InstanceStats {
   totalCandidates: number;
   totalVoters: number;
   registeredVoters: number;
-  totalVotes: number;
+  completedVotes: number;
+  totalRawVotes: number;
 }
 
 export default function InstanceDashboardPage() {
@@ -36,7 +36,8 @@ export default function InstanceDashboardPage() {
     totalCandidates: 0,
     totalVoters: 0,
     registeredVoters: 0,
-    totalVotes: 0,
+    completedVotes: 0,
+    totalRawVotes: 0,
   });
   const [loading, setLoading] = useState(true);
 
@@ -60,20 +61,47 @@ export default function InstanceDashboardPage() {
     async function loadStats() {
       const supabase = createClient();
 
-      const [categoriesRes, candidatesRes, votersRes, registeredRes, votesRes] = await Promise.all([
-        supabase.from('categories').select('id', { count: 'exact', head: true }).eq('instance_id', instanceId),
+      const [categoriesRes, candidatesRes, votersRes, registeredRes, votesDataRes] = await Promise.all([
+        supabase.from('categories').select('id', { count: 'exact' }).eq('instance_id', instanceId),
         supabase.from('candidates').select('id', { count: 'exact', head: true }).eq('instance_id', instanceId),
         supabase.from('voters').select('id', { count: 'exact', head: true }).eq('instance_id', instanceId),
         supabase.from('voters').select('id', { count: 'exact', head: true }).eq('instance_id', instanceId).eq('is_registered', true),
-        supabase.from('votes').select('id', { count: 'exact', head: true }).eq('instance_id', instanceId),
+        supabase.from('votes').select('voter_id, category_id').eq('instance_id', instanceId),
       ]);
 
+      const totalCategories = categoriesRes.count || 0;
+      const totalCandidates = candidatesRes.count || 0;
+      const totalVoters = votersRes.count || 0;
+      const registeredVoters = registeredRes.count || 0;
+
+      // Calcul des utilisateurs ayant voté dans TOUTES les catégories de l'instance
+      let completedVotesCount = 0;
+      const rawVotesList = votesDataRes.data || [];
+
+      if (totalCategories > 0 && rawVotesList.length > 0) {
+        const voterCategoriesMap = new Map<string, Set<string>>();
+        for (const v of rawVotesList) {
+          if (!v.voter_id || !v.category_id) continue;
+          if (!voterCategoriesMap.has(v.voter_id)) {
+            voterCategoriesMap.set(v.voter_id, new Set());
+          }
+          voterCategoriesMap.get(v.voter_id)!.add(v.category_id);
+        }
+
+        for (const categorySet of voterCategoriesMap.values()) {
+          if (categorySet.size >= totalCategories) {
+            completedVotesCount++;
+          }
+        }
+      }
+
       setStats({
-        totalCategories: categoriesRes.count || 0,
-        totalCandidates: candidatesRes.count || 0,
-        totalVoters: votersRes.count || 0,
-        registeredVoters: registeredRes.count || 0,
-        totalVotes: votesRes.count || 0,
+        totalCategories,
+        totalCandidates,
+        totalVoters,
+        registeredVoters,
+        completedVotes: completedVotesCount,
+        totalRawVotes: rawVotesList.length,
       });
 
       setLoading(false);
@@ -96,8 +124,8 @@ export default function InstanceDashboardPage() {
       draft: 'Brouillon',
       active: 'Active',
       paused: 'En pause',
-      completed: 'Terminee',
-      archived: 'Archivee',
+      completed: 'Terminée',
+      archived: 'Archivée',
     };
     return (
       <span className={`px-3 py-1 text-sm font-medium rounded-full ${styles[status] || styles.draft}`}>
@@ -108,7 +136,7 @@ export default function InstanceDashboardPage() {
 
   const statCards = [
     {
-      title: 'Categories',
+      title: 'Catégories',
       value: stats.totalCategories,
       icon: FolderTree,
       color: 'text-blue-600',
@@ -129,8 +157,9 @@ export default function InstanceDashboardPage() {
       bgColor: 'bg-green-100',
     },
     {
-      title: 'Votes',
-      value: stats.totalVotes,
+      title: 'Votes complets',
+      value: `${stats.completedVotes}/${stats.totalVoters}`,
+      subtitle: `${stats.completedVotes} votant${stats.completedVotes > 1 ? 's' : ''} sur ${stats.totalCategories} catégorie${stats.totalCategories > 1 ? 's' : ''}`,
       icon: Vote,
       color: 'text-yellow-600',
       bgColor: 'bg-yellow-100',
@@ -142,15 +171,15 @@ export default function InstanceDashboardPage() {
 
   const quickActions = [
     {
-      title: 'Gerer les categories',
-      description: 'Ajouter ou modifier des categories',
+      title: 'Gérer les catégories',
+      description: 'Ajouter ou modifier des catégories',
       href: `${basePath}/categories`,
       icon: FolderTree,
       roles: ['admin', 'super_admin'],
     },
     {
-      title: 'Gerer les candidats',
-      description: 'Ajouter des candidats aux categories',
+      title: 'Gérer les candidats',
+      description: 'Ajouter des candidats aux catégories',
       href: `${basePath}/candidates`,
       icon: UserCheck,
       roles: ['admin', 'super_admin'],
@@ -164,14 +193,14 @@ export default function InstanceDashboardPage() {
     },
     {
       title: 'Voter',
-      description: 'Participer a l\'election',
+      description: 'Participer à l\'élection',
       href: `${basePath}/vote`,
       icon: Vote,
       roles: ['voter'],
     },
     {
-      title: 'Voir les resultats',
-      description: 'Consulter les tendances',
+      title: 'Voir les résultats',
+      description: 'Consulter les tendances et statistiques',
       href: `${basePath}/results`,
       icon: BarChart3,
       roles: ['super_admin', 'admin', 'observer'],
@@ -191,7 +220,7 @@ export default function InstanceDashboardPage() {
             {currentInstance?.name || 'Instance'}
           </h1>
           <p className="text-sm sm:text-base text-gray-600 mt-1">
-            Tableau de bord de l'election
+            Tableau de bord de l&apos;élection
           </p>
         </div>
         {currentInstance && getStatusBadge(currentInstance.status)}
@@ -205,11 +234,14 @@ export default function InstanceDashboardPage() {
               <div className={`p-3 rounded-lg ${card.bgColor}`}>
                 <card.icon className={`w-6 h-6 ${card.color}`} />
               </div>
-              <div>
-                <p className="text-sm text-gray-500">{card.title}</p>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm text-gray-500 truncate">{card.title}</p>
                 <p className="text-2xl font-bold text-gray-900">
                   {loading ? '-' : card.value}
                 </p>
+                {card.subtitle && !loading && (
+                  <p className="text-xs text-gray-400 mt-0.5 truncate">{card.subtitle}</p>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -256,14 +288,14 @@ export default function InstanceDashboardPage() {
           <CardContent>
             <dl className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <dt className="text-sm text-gray-500">Date de creation</dt>
+                <dt className="text-sm text-gray-500">Date de création</dt>
                 <dd className="font-medium text-gray-900">
                   {new Date(currentInstance.created_at).toLocaleDateString('fr-FR')}
                 </dd>
               </div>
               {currentInstance.started_at && (
                 <div>
-                  <dt className="text-sm text-gray-500">Date de debut</dt>
+                  <dt className="text-sm text-gray-500">Date de début</dt>
                   <dd className="font-medium text-gray-900">
                     {new Date(currentInstance.started_at).toLocaleDateString('fr-FR')}
                   </dd>
@@ -278,10 +310,10 @@ export default function InstanceDashboardPage() {
                 </div>
               )}
               <div>
-                <dt className="text-sm text-gray-500">Taux de participation</dt>
+                <dt className="text-sm text-gray-500">Taux de participation (votes complets)</dt>
                 <dd className="font-medium text-gray-900">
                   {stats.totalVoters > 0
-                    ? `${Math.round((stats.registeredVoters / stats.totalVoters) * 100)}%`
+                    ? `${Math.round((stats.completedVotes / stats.totalVoters) * 100)}%`
                     : '0%'}
                 </dd>
               </div>
