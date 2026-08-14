@@ -80,18 +80,28 @@ async function fetchWithTimeout(url: string, options: RequestInit = {}, timeoutM
   }
 }
 
-export function AuthProvider({ children }: { children: ReactNode }) {
-  // Initialisation immédiate depuis le cache pour supprimer tout flash de chargement
+export function AuthProvider({
+  children,
+  initialUser = null,
+  initialAuthUser = null,
+}: {
+  children: ReactNode;
+  /** Session résolue côté serveur (root layout) : évite tout aller-retour au premier rendu */
+  initialUser?: User | null;
+  initialAuthUser?: AuthUser | null;
+}) {
+  // Priorité aux données serveur, puis au cache local, pour supprimer tout flash de chargement
   const cachedInitial = typeof window !== 'undefined' ? getFromStorage() : null;
+  const seededAuthUser = initialAuthUser ?? cachedInitial?.authUser ?? null;
 
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(initialUser);
   const [session, setSession] = useState<Session | null>(null);
-  const [authUser, setAuthUser] = useState<AuthUser | null>(() => cachedInitial?.authUser ?? null);
-  const [loading, setLoading] = useState<boolean>(() => !cachedInitial);
+  const [authUser, setAuthUser] = useState<AuthUser | null>(() => seededAuthUser);
+  const [loading, setLoading] = useState<boolean>(() => (initialUser ? false : !cachedInitial));
   const [hasNoRole, setHasNoRole] = useState(false);
-  const [adminInstances, setAdminInstances] = useState<UserInstanceSummary[]>(() => cachedInitial?.authUser.admin_instances ?? []);
-  const [voterInstances, setVoterInstances] = useState<UserInstanceSummary[]>(() => cachedInitial?.authUser.voter_instances ?? []);
-  const [hasMultipleContexts, setHasMultipleContexts] = useState<boolean>(() => cachedInitial?.authUser.has_multiple_contexts ?? false);
+  const [adminInstances, setAdminInstances] = useState<UserInstanceSummary[]>(() => seededAuthUser?.admin_instances ?? []);
+  const [voterInstances, setVoterInstances] = useState<UserInstanceSummary[]>(() => seededAuthUser?.voter_instances ?? []);
+  const [hasMultipleContexts, setHasMultipleContexts] = useState<boolean>(() => seededAuthUser?.has_multiple_contexts ?? false);
 
   const supabase = createClient();
   const isFetchingRef = useRef(false);
@@ -167,6 +177,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setUser(currentSession?.user ?? null);
 
         if (currentSession?.user) {
+          // Le serveur a déjà résolu le profil de cet utilisateur : rien à recharger
+          if (initialAuthUser && initialAuthUser.id === currentSession.user.id) {
+            saveToStorage(initialAuthUser);
+            setHasNoRole(false);
+            return;
+          }
+
           const cached = getFromStorage();
           const isCacheValid = cached &&
             cached.authUser.id === currentSession.user.id &&

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { AuthProvider } from "@/hooks/useAuth";
+import { getInitialAuthState } from "@/lib/supabase/workspace";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -23,17 +24,22 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  // Résolution de la session côté serveur : le client démarre avec ses données,
+  // sans écran de chargement ni aller-retour /api/auth/me au premier rendu.
+  // Aucun appel réseau si aucun cookie de session (pages publiques).
+  const { user, authUser } = await getInitialAuthState();
+
   return (
     <html lang="fr">
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased bg-gray-50`}
       >
-        <AuthProvider>
+        <AuthProvider initialUser={user} initialAuthUser={authUser}>
           {children}
         </AuthProvider>
       </body>

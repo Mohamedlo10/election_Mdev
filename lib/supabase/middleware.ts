@@ -10,6 +10,38 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
   ]);
 }
 
+const SESSION_COOKIE = /^sb-.+-auth-token(\.\d+)?$/;
+
+/** Décodage base64url compatible runtime Edge (pas de Buffer). */
+function decodeBase64Url(value: string): string {
+  const normalized = value.replace(/-/g, '+').replace(/_/g, '/');
+  const padded = normalized + '='.repeat((4 - (normalized.length % 4)) % 4);
+  const binary = atob(padded);
+  return new TextDecoder().decode(Uint8Array.from(binary, (c) => c.charCodeAt(0)));
+}
+
+/**
+ * Expiration de la session lue directement dans le cookie (aucun appel réseau).
+ * Renvoie null si le cookie est absent ou illisible : on retombe alors sur une
+ * vérification complète auprès de Supabase.
+ */
+function readSessionExpiry(cookies: { name: string; value: string }[]): number | null {
+  const chunks = cookies
+    .filter((c) => SESSION_COOKIE.test(c.name))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+  if (chunks.length === 0) return null;
+
+  try {
+    const raw = chunks.map((c) => c.value).join('');
+    const json = raw.startsWith('base64-') ? decodeBase64Url(raw.slice(7)) : raw;
+    const expiresAt = JSON.parse(json)?.expires_at;
+    return typeof expiresAt === 'number' ? expiresAt : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function updateSession(request: NextRequest) {
   let supabaseResponse = NextResponse.next({
     request,
@@ -79,30 +111,30 @@ export async function updateSession(request: NextRequest) {
     }
   );
 
-  let user = null;
+  let isAuthenticated = false;
   // La vérification réseau a échoué (timeout, Supabase injoignable) : on ne peut pas
   // en conclure que l'utilisateur est déconnecté.
   let authCheckFailed = false;
 
-  if (hasSupabaseCookie) {
+  const expiresAt = readSessionExpiry(allCookies);
+  const secondsLeft = expiresAt === null ? null : expiresAt - Date.now() / 1000;
+
+  if (secondsLeft !== null && secondsLeft > 60) {
+    // Token encore valide : aucun appel réseau. Le middleware ne fait que de
+    // l'aiguillage ; l'autorisation réelle est revérifiée côté serveur
+    // (root layout, routes API) et par les politiques RLS.
+    isAuthenticated = true;
+  } else if (hasSupabaseCookie) {
+    // Token absent, expiré ou illisible : vérification complète, qui déclenche
+    // au passage le rafraîchissement et la réécriture des cookies.
     try {
       const {
-        data: { user: authUser },
+        data: { user },
       } = await withTimeout(supabase.auth.getUser(), 2500); // 2.5 secondes max
-      user = authUser;
+      isAuthenticated = Boolean(user);
     } catch {
-      user = null;
       authCheckFailed = true;
     }
-  }
-
-  if (process.env.NODE_ENV !== 'production') {
-    console.log('[middleware]', pathname, {
-      hasSupabaseCookie,
-      authCheckFailed,
-      user: user?.email ?? null,
-      cookies: allCookies.map((c) => c.name),
-    });
   }
 
   // Session probablement valide mais non vérifiable : on laisse passer,
@@ -112,7 +144,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Si pas connecté et route protégée
-  if (!user && !isPublicRoute) {
+  if (!isAuthenticated && !isPublicRoute) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     const redirectResponse = NextResponse.redirect(url);
@@ -123,7 +155,7 @@ export async function updateSession(request: NextRequest) {
   }
 
   // Si connecté et sur page login/register, rediriger vers dashboard
-  if (user && (pathname === '/login' || pathname === '/register')) {
+  if (isAuthenticated && (pathname === '/login' || pathname === '/register')) {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
     const redirectResponse = NextResponse.redirect(url);
