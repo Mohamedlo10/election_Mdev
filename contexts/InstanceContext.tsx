@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback, useRef, ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { ElectionInstance, InstanceTheme } from '@/types';
 
@@ -14,7 +14,6 @@ interface InstanceContextType {
   setInstance: (instance: ElectionInstance) => void;
   clearInstance: () => void;
   refreshInstance: () => Promise<void>;
-  // Permission flags based on instance status
   canModifyCategories: boolean;
   canModifyCandidates: boolean;
   canModifyVoters: boolean;
@@ -29,7 +28,6 @@ const defaultTheme: InstanceTheme = {
 
 const InstanceContext = createContext<InstanceContextType | undefined>(undefined);
 
-// Fonction utilitaire pour assombrir une couleur
 function darkenColor(hex: string, percent: number): string {
   const num = parseInt(hex.replace('#', ''), 16);
   const r = Math.max(0, Math.min(255, (num >> 16) - (num >> 16) * percent / 100));
@@ -38,7 +36,6 @@ function darkenColor(hex: string, percent: number): string {
   return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, '0')}`;
 }
 
-// Fonction utilitaire pour éclaircir une couleur
 function lightenColor(hex: string, percent: number): string {
   const num = parseInt(hex.replace('#', ''), 16);
   const r = Math.min(255, (num >> 16) + (255 - (num >> 16)) * percent / 100);
@@ -49,40 +46,25 @@ function lightenColor(hex: string, percent: number): string {
 
 function applyThemeToDocument(theme: InstanceTheme) {
   if (typeof document === 'undefined') return;
-
   const root = document.documentElement;
-  
-  // Couleurs de base
   root.style.setProperty('--theme-primary', theme.primary);
   root.style.setProperty('--theme-secondary', theme.secondary);
   root.style.setProperty('--theme-accent', theme.accent);
-
-  // Versions claires (10% opacité)
   root.style.setProperty('--theme-primary-light', `${theme.primary}1a`);
   root.style.setProperty('--theme-secondary-light', `${theme.secondary}1a`);
   root.style.setProperty('--theme-accent-light', `${theme.accent}1a`);
-
-  // Versions très claires (5% opacité)
   root.style.setProperty('--theme-primary-lighter', `${theme.primary}0d`);
   root.style.setProperty('--theme-secondary-lighter', `${theme.secondary}0d`);
   root.style.setProperty('--theme-accent-lighter', `${theme.accent}0d`);
-
-  // Versions avec 20% opacité
   root.style.setProperty('--theme-primary-medium', `${theme.primary}33`);
   root.style.setProperty('--theme-secondary-medium', `${theme.secondary}33`);
   root.style.setProperty('--theme-accent-medium', `${theme.accent}33`);
-
-  // Versions assombries pour hover
   root.style.setProperty('--theme-primary-dark', darkenColor(theme.primary, 10));
   root.style.setProperty('--theme-secondary-dark', darkenColor(theme.secondary, 10));
   root.style.setProperty('--theme-accent-dark', darkenColor(theme.accent, 10));
-
-  // Versions très assombries
   root.style.setProperty('--theme-primary-darker', darkenColor(theme.primary, 20));
   root.style.setProperty('--theme-secondary-darker', darkenColor(theme.secondary, 20));
   root.style.setProperty('--theme-accent-darker', darkenColor(theme.accent, 20));
-
-  // Versions éclaircies
   root.style.setProperty('--theme-primary-bright', lightenColor(theme.primary, 10));
   root.style.setProperty('--theme-secondary-bright', lightenColor(theme.secondary, 10));
   root.style.setProperty('--theme-accent-bright', lightenColor(theme.accent, 10));
@@ -105,56 +87,60 @@ export function InstanceProvider({
   const [error, setError] = useState<string | null>(null);
   const [theme, setTheme] = useState<InstanceTheme>(defaultTheme);
 
-  const supabase = createClient();
+  // ✅ Instance Supabase stable via useRef — évite la boucle de re-renders
+  const supabaseRef = useRef(createClient());
 
-  const fetchInstance = useCallback(async (id: string) => {
-    setLoading(true);
-    setError(null);
-
-    const { data, error: fetchError } = await supabase
-      .from('election_instances')
-      .select('*')
-      .eq('id', id)
-      .single();
-
-    if (fetchError) {
-      console.error('[Instance] Fetch error:', fetchError);
-      setError('Instance non trouvée');
-      setLoading(false);
-      return null;
-    }
-
-    return data as ElectionInstance;
-  }, [supabase]);
-
-  const setInstanceById = useCallback(async (id: string) => {
-    const instance = await fetchInstance(id);
-    if (instance) {
-      setCurrentInstance(instance);
-      setInstanceId(id);
-      const newTheme: InstanceTheme = {
-        primary: instance.primary_color || defaultTheme.primary,
-        secondary: instance.secondary_color || defaultTheme.secondary,
-        accent: instance.accent_color || defaultTheme.accent,
-      };
-      setTheme(newTheme);
-      applyThemeToDocument(newTheme);
-    }
-    setLoading(false);
-  }, [fetchInstance]);
-
-  const setInstance = useCallback((instance: ElectionInstance) => {
-    setCurrentInstance(instance);
-    setInstanceId(instance.id);
+  const applyInstance = useCallback((instance: ElectionInstance) => {
     const newTheme: InstanceTheme = {
       primary: instance.primary_color || defaultTheme.primary,
       secondary: instance.secondary_color || defaultTheme.secondary,
       accent: instance.accent_color || defaultTheme.accent,
     };
+    setCurrentInstance(instance);
     setTheme(newTheme);
     applyThemeToDocument(newTheme);
-    setLoading(false);
   }, []);
+
+  // ✅ fetchInstance stable (sans dépendance à supabase instable)
+  const fetchInstance = useCallback(async (id: string): Promise<ElectionInstance | null> => {
+    const { data, error: fetchError } = await supabaseRef.current
+      .from('election_instances')
+      .select('*')
+      .eq('id', id)
+      .single();
+
+    if (fetchError || !data) {
+      console.error('[Instance] Fetch error:', fetchError);
+      return null;
+    }
+    return data as ElectionInstance;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Stable — supabaseRef.current ne change jamais
+
+  const setInstanceById = useCallback(async (id: string) => {
+    setLoading(true);
+    setError(null);
+    try {
+      const instance = await fetchInstance(id);
+      if (instance) {
+        setInstanceId(id);
+        applyInstance(instance);
+      } else {
+        setError('Instance non trouvée');
+      }
+    } catch (e) {
+      console.error('[Instance] setInstanceById error:', e);
+      setError('Erreur lors du chargement de l\'instance');
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchInstance, applyInstance]);
+
+  const setInstance = useCallback((instance: ElectionInstance) => {
+    setInstanceId(instance.id);
+    applyInstance(instance);
+    setLoading(false);
+  }, [applyInstance]);
 
   const clearInstance = useCallback(() => {
     setCurrentInstance(null);
@@ -170,40 +156,37 @@ export function InstanceProvider({
     }
   }, [instanceId, setInstanceById]);
 
-  // Charger l'instance initiale si fournie
+  // ✅ useEffect stable — s'exécute une seule fois au montage avec l'ID initial
   useEffect(() => {
-    if (initialInstanceId && !currentInstance) {
+    if (initialInstanceId) {
       setInstanceById(initialInstanceId);
     }
-  }, [initialInstanceId, currentInstance, setInstanceById]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // Tableau vide intentionnel — initialInstanceId est stable (vient des params URL)
 
-  // Appliquer le thème au chargement
+  // Appliquer le thème quand il change
   useEffect(() => {
     applyThemeToDocument(theme);
   }, [theme]);
 
-  // Permission flags based on instance status
   const isDraft = currentInstance?.status === 'draft';
 
-  const value: InstanceContextType = {
-    currentInstance,
-    instanceId,
-    loading,
-    error,
-    theme,
-    setInstanceById,
-    setInstance,
-    clearInstance,
-    refreshInstance,
-    // Permissions: only modifiable when in draft status
-    canModifyCategories: isDraft ?? true,
-    canModifyCandidates: isDraft ?? true,
-    canModifyVoters: isDraft ?? true,
-    canAddVoters: isDraft ?? true, // Only allowed in draft status
-  };
-
   return (
-    <InstanceContext.Provider value={value}>
+    <InstanceContext.Provider value={{
+      currentInstance,
+      instanceId,
+      loading,
+      error,
+      theme,
+      setInstanceById,
+      setInstance,
+      clearInstance,
+      refreshInstance,
+      canModifyCategories: isDraft ?? true,
+      canModifyCandidates: isDraft ?? true,
+      canModifyVoters: isDraft ?? true,
+      canAddVoters: isDraft ?? true,
+    }}>
       {children}
     </InstanceContext.Provider>
   );
