@@ -71,11 +71,8 @@ export async function POST(request: Request) {
     }
 
     let confirmationLink = linkData.properties.action_link;
-    if (appUrl.includes('mouhadev.com')) {
-      confirmationLink = confirmationLink
-        .replace('http://localhost:3000', appUrl)
-        .replace('http://localhost:3001', appUrl);
-    }
+    // Toujours remplacer localhost par l'URL réelle de l'application (quelle que soit la config Supabase)
+    confirmationLink = confirmationLink.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/g, appUrl);
 
     // 3. Transmettre le lien dans un email SMTP personnalisé
     const emailResult = await sendEmailConfirmationLink(normalizedEmail, confirmationLink);

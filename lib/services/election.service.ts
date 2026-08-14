@@ -93,12 +93,38 @@ export async function deleteInstance(id: string): Promise<ApiResponse<null>> {
   return { data: null, error: null, success: true };
 }
 
-// Démarrer une élection
-export async function startElection(id: string): Promise<ApiResponse<ElectionInstance>> {
-  return updateInstance(id, {
-    status: 'active',
-  });
+// Démarrer une élection (+ créer les comptes auth votants + envoyer les emails)
+export async function startElection(id: string): Promise<ApiResponse<ElectionInstance & { notified?: number; errors?: string[] }>> {
+  try {
+    const response = await fetch(`/api/instance/${id}/start`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+    });
+
+    const json = await response.json();
+
+    if (!response.ok) {
+      return { data: null, error: json.error || 'Erreur lors du lancement', success: false };
+    }
+
+    // Récupérer l'instance mise à jour
+    const instanceResult = await getInstance(id);
+
+    return {
+      data: {
+        ...(instanceResult.data as ElectionInstance),
+        notified: json.notified,
+        errors: json.errors,
+      },
+      error: null,
+      success: true,
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Erreur réseau';
+    return { data: null, error: message, success: false };
+  }
 }
+
 
 // Mettre en pause une élection
 export async function pauseElection(id: string): Promise<ApiResponse<ElectionInstance>> {

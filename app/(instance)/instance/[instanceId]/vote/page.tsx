@@ -137,7 +137,14 @@ export default function InstanceVotePage() {
     if (result.success) {
       setShowConfirmModal(false);
       setShowSuccessModal(true);
-      loadData();
+      // Mise à jour locale immédiate pour éviter le flash de rechargement (setLoading)
+      setCategories((prev) =>
+        prev.map((cat) =>
+          cat.id === selectedCategory.id
+            ? { ...cat, hasVoted: true, votedCandidateId: selectedCandidate.id }
+            : cat
+        )
+      );
       setSelectedCategory(null);
       setSelectedCandidate(null);
     } else {

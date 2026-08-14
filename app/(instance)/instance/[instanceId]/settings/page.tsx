@@ -134,7 +134,20 @@ export default function InstanceSettingsPage() {
 
     if (result?.success) {
       await refreshInstance();
-      setSuccess('Statut mis a jour avec succes');
+      if (actionType === 'start' && result.data) {
+        const startData = result.data as { notified?: number; errors?: string[] };
+        const notified = startData.notified ?? 0;
+        const errs = startData.errors ?? [];
+        if (errs.length > 0) {
+          setSuccess(
+            `Election lancée ! ${notified} votant(s) notifié(s) par email. ${errs.length} erreur(s) d'envoi (voir console).`
+          );
+        } else {
+          setSuccess(`Election lancée ! ${notified} votant(s) notifié(s) par email.`);
+        }
+      } else {
+        setSuccess('Statut mis a jour avec succes');
+      }
     } else {
       setError(result?.error || 'Erreur lors du changement de statut');
     }
@@ -144,6 +157,7 @@ export default function InstanceSettingsPage() {
     setSaving(false);
   }
 
+
   function openActionModal(action: 'start' | 'pause' | 'end') {
     setActionType(action);
     setShowActionModal(true);
@@ -152,7 +166,8 @@ export default function InstanceSettingsPage() {
   const getActionMessage = () => {
     switch (actionType) {
       case 'start':
-        return 'Etes-vous sur de vouloir demarrer l\'election ? Les votants pourront commencer a voter.';
+        return 'Etes-vous sur de vouloir demarrer l\'election ? Un email de connexion sera automatiquement envoyé à tous les votants enregistrés.';
+
       case 'pause':
         return 'Etes-vous sur de vouloir mettre en pause l\'election ? Les votes seront temporairement suspendus.';
       case 'end':

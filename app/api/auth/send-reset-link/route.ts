@@ -141,11 +141,8 @@ export async function POST(request: Request) {
 
     if (linkData?.properties?.action_link) {
       resetLink = linkData.properties.action_link;
-      // Remplacer toute occurrence de localhost par l'URL réelle du site
-      resetLink = resetLink
-        .replace('http://localhost:3000', appUrl)
-        .replace('http://localhost:3001', appUrl)
-        .replace('http://127.0.0.1:3000', appUrl);
+      // Toujours remplacer localhost par l'URL réelle de l'application (quelle que soit la config Supabase)
+      resetLink = resetLink.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/g, appUrl);
     }
 
     if (!resetLink) {
