@@ -13,7 +13,7 @@ interface LoadingScreenProps {
  * Après `timeoutMs` (défaut 5s), affiche un bouton de déconnexion
  * pour permettre à l'utilisateur de repartir d'un état propre.
  */
-export default function LoadingScreen({ message = 'Chargement...', timeoutMs = 5000 }: LoadingScreenProps) {
+export default function LoadingScreen({ message = 'Chargement...', timeoutMs = 10000 }: LoadingScreenProps) {
   const [timedOut, setTimedOut] = useState(false);
 
   useEffect(() => {
