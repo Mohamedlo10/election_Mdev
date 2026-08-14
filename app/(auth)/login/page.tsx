@@ -8,6 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Alert from '@/components/ui/Alert';
+import GoogleAuthButton from '@/components/ui/GoogleAuthButton';
 import { useAuth } from '@/hooks/useAuth';
 import { useEffect, useRef } from 'react';
 
@@ -283,23 +284,45 @@ function LoginForm() {
 
         {/* ── FORMULAIRE (email ou password) ──────────────────────────── */}
         {(step === 'email' || step === 'password') && (
-          <form onSubmit={handleSubmit} className="space-y-4">
-            {/* Étape email */}
+          <div className="space-y-4">
             {step === 'email' && (
-              <div className="relative mx-4">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
-                <Input
-                  type="email"
-                  placeholder="votremail@exemple.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10 text-black"
-                  required
-                  disabled={loading}
-                  autoFocus
-                />
-              </div>
+              <>
+                <div className="mx-4">
+                  <GoogleAuthButton
+                    label="Continuer avec Google"
+                    onError={(err) => setError(err)}
+                    disabled={loading}
+                  />
+                </div>
+
+                <div className="relative mx-4 my-2">
+                  <div className="absolute inset-0 flex items-center">
+                    <div className="w-full border-t border-gray-200" />
+                  </div>
+                  <div className="relative flex justify-center text-xs uppercase">
+                    <span className="bg-white px-2 text-gray-400 font-medium">Ou avec votre email</span>
+                  </div>
+                </div>
+              </>
             )}
+
+            <form onSubmit={handleSubmit} className="space-y-4">
+              {/* Étape email */}
+              {step === 'email' && (
+                <div className="relative mx-4">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                  <Input
+                    type="email"
+                    placeholder="votremail@exemple.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-10 text-black"
+                    required
+                    disabled={loading}
+                    autoFocus
+                  />
+                </div>
+              )}
 
             {/* Étape mot de passe */}
             {step === 'password' && (
@@ -363,7 +386,8 @@ function LoginForm() {
               {step === 'email' ? 'Continuer' : 'Se connecter'}
             </Button>
           </form>
-        )}
+        </div>
+      )}
       </CardContent>
 
       <CardFooter className="flex flex-col gap-2 text-center border-t border-gray-100 pt-4">

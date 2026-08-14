@@ -18,6 +18,7 @@ interface AuthContextType {
   /** true si l'utilisateur est à la fois admin sur une instance ET votant sur une autre */
   hasMultipleContexts: boolean;
   signIn: (email: string, password: string) => Promise<{ error: string | null }>;
+  signInWithGoogle: () => Promise<{ error: string | null }>;
   signOut: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -239,6 +240,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return { error: null };
   };
 
+  const signInWithGoogle = async () => {
+    const origin = typeof window !== 'undefined' ? window.location.origin : (process.env.NEXT_PUBLIC_APP_URL || '');
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: `${origin}/auth/confirm?next=/dashboard`,
+      },
+    });
+
+    if (error) {
+      return { error: error.message };
+    }
+
+    return { error: null };
+  };
+
   const signOut = async () => {
     await supabase.auth.signOut();
     setAuthUser(null);
@@ -255,6 +272,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     voterInstances,
     hasMultipleContexts,
     signIn,
+    signInWithGoogle,
     signOut,
     refreshUser,
   };

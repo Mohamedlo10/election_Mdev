@@ -8,6 +8,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter }
 import Button from '@/components/ui/Button';
 import Input from '@/components/ui/Input';
 import Alert from '@/components/ui/Alert';
+import GoogleAuthButton from '@/components/ui/GoogleAuthButton';
 
 function RegisterForm() {
   const router = useRouter();
@@ -190,6 +191,23 @@ function RegisterForm() {
                 {error}
               </Alert>
             )}
+
+            <div className="mb-4">
+              <GoogleAuthButton
+                label="S'inscrire avec Google"
+                onError={(err) => setError(err)}
+                disabled={loading}
+              />
+            </div>
+
+            <div className="relative my-4">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-200" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-white px-2 text-gray-400 font-medium">Ou avec votre email</span>
+              </div>
+            </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Email */}

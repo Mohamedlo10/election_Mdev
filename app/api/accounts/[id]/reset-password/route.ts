@@ -17,12 +17,16 @@ function createAdminClient() {
   );
 }
 
-// Generer un code a 6 chiffres
+// Générer un code à 6 chiffres
 function generateCode(): string {
   return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// POST - Reinitialiser le mot de passe d'un compte (admin/observer)
+/**
+ * POST /api/accounts/[id]/reset-password
+ * Réinitialiser le mot de passe d'un compte utilisateur.
+ * [id] peut être soit le user_id de l'utilisateur, soit un ID de users_roles.
+ */
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -30,17 +34,15 @@ export async function POST(
   try {
     const { id } = await params;
 
-    // Verifier l'authentification
     const supabase = await createServerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json({ error: 'Non authentifie' }, { status: 401 });
+      return NextResponse.json({ error: 'Non authentifié' }, { status: 401 });
     }
 
     const adminClient = createAdminClient();
 
-    // Verifier que l'utilisateur est super_admin
     const { data: roleData } = await adminClient
       .from('users_roles')
       .select('role')
@@ -48,89 +50,78 @@ export async function POST(
       .single();
 
     if (!roleData || roleData.role !== 'super_admin') {
-      return NextResponse.json({ error: 'Acces refuse' }, { status: 403 });
+      return NextResponse.json({ error: 'Accès refusé' }, { status: 403 });
     }
 
-    // Recuperer les infos du compte a modifier
-    const { data: accountRole } = await adminClient
-      .from('users_roles')
-      .select('role, user_id, instance_id')
-      .eq('id', id)
-      .single();
-
-    if (!accountRole) {
-      return NextResponse.json({ error: 'Compte non trouve' }, { status: 404 });
-    }
-
-    if (accountRole.role === 'super_admin') {
-      return NextResponse.json({ error: 'Impossible de reinitialiser le mot de passe d\'un super admin via cette methode' }, { status: 403 });
-    }
-
-    if (accountRole.role === 'voter') {
-      return NextResponse.json({ error: 'Utilisez la gestion des electeurs pour reinitialiser le mot de passe d\'un votant' }, { status: 400 });
-    }
-
-    // Recuperer l'email de l'utilisateur
+    // Récupérer la liste des utilisateurs pour trouver la cible
     const { data: { users }, error: listError } = await adminClient.auth.admin.listUsers({
       perPage: 1000,
     });
 
     if (listError) {
       console.error('Error listing users:', listError);
-      return NextResponse.json({ error: 'Erreur lors de la recuperation des utilisateurs' }, { status: 500 });
+      return NextResponse.json({ error: 'Erreur lors de la récupération des utilisateurs' }, { status: 500 });
     }
 
-    const targetUser = users.find(u => u.id === accountRole.user_id);
-    if (!targetUser || !targetUser.email) {
-      return NextResponse.json({ error: 'Utilisateur non trouve' }, { status: 404 });
+    // 1. Chercher si id est directement un user_id
+    let targetUser = users.find((u) => u.id === id);
+    let targetUserId = targetUser?.id;
+
+    // 2. Si non trouvé directement, chercher dans users_roles
+    if (!targetUser) {
+      const { data: roleRow } = await adminClient
+        .from('users_roles')
+        .select('user_id, email')
+        .eq('id', id)
+        .maybeSingle();
+
+      if (roleRow?.user_id) {
+        targetUserId = roleRow.user_id;
+        targetUser = users.find((u) => u.id === roleRow.user_id);
+      } else if (roleRow?.email) {
+        targetUser = users.find((u) => u.email?.toLowerCase() === roleRow.email.toLowerCase());
+        targetUserId = targetUser?.id;
+      }
     }
 
-    // Generer un nouveau code a 6 chiffres
+    if (!targetUser || !targetUser.email || !targetUserId) {
+      return NextResponse.json({ error: 'Utilisateur non trouvé' }, { status: 404 });
+    }
+
+    // Générer un nouveau mot de passe temporaire
     const newPassword = generateCode();
 
-    // Mettre a jour le mot de passe via l'API admin Supabase
+    // Mettre à jour le mot de passe
     const { error: updateError } = await adminClient.auth.admin.updateUserById(
-      accountRole.user_id,
+      targetUserId,
       { password: newPassword }
     );
 
     if (updateError) {
       console.error('Error updating password:', updateError);
-      return NextResponse.json({ error: 'Erreur lors de la mise a jour du mot de passe' }, { status: 500 });
-    }
-
-    // Recuperer le nom de l'instance si applicable
-    let instanceName: string | undefined;
-    if (accountRole.instance_id) {
-      const { data: instance } = await adminClient
-        .from('election_instances')
-        .select('name')
-        .eq('id', accountRole.instance_id)
-        .single();
-      instanceName = instance?.name;
+      return NextResponse.json({ error: 'Erreur lors de la mise à jour du mot de passe' }, { status: 500 });
     }
 
     // Envoyer l'email avec le nouveau mot de passe
     const emailResult = await sendPasswordResetEmail(
       targetUser.email,
       newPassword,
-      accountRole.role as 'admin' | 'observer',
-      instanceName
+      'admin'
     );
 
     if (!emailResult.success) {
       console.error('Email error:', emailResult.error);
-      // Le mot de passe a ete change mais l'email n'a pas pu etre envoye
       return NextResponse.json({
         success: true,
-        warning: 'Mot de passe reinitialise mais l\'email n\'a pas pu etre envoye',
-        newPassword: newPassword, // Retourner le mot de passe pour que l'admin puisse le communiquer
+        warning: "Mot de passe réinitialisé mais l'email n'a pas pu être envoyé",
+        newPassword: newPassword,
       });
     }
 
     return NextResponse.json({
       success: true,
-      message: 'Mot de passe reinitialise et email envoye',
+      newPassword: newPassword,
+      message: 'Mot de passe réinitialisé et email envoyé avec succès.',
     });
   } catch (error) {
     console.error('Reset password error:', error);
