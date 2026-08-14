@@ -1,6 +1,7 @@
 'use client';
 
-import { Fragment, ReactNode } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { X } from 'lucide-react';
 
 interface ModalProps {
@@ -18,7 +19,25 @@ export default function Modal({
   title,
   size = 'md',
 }: ModalProps) {
-  if (!isOpen) return null;
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Empêcher le défilement de la page lorsque la modale est ouverte
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [isOpen]);
+
+  if (!isOpen || !mounted) return null;
 
   const sizes = {
     sm: 'max-w-sm',
@@ -27,40 +46,45 @@ export default function Modal({
     xl: 'max-w-xl',
   };
 
-  return (
-    <Fragment>
+  const modalNode = (
+    <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 overflow-y-auto">
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/50 z-50 transition-opacity"
+        className="fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity"
         onClick={onClose}
+        aria-hidden="true"
       />
 
-      {/* Modal */}
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-        <div
-          className={`
-            bg-white rounded-xl shadow-xl w-full ${sizes[size]}
-            transform transition-all animate-in fade-in zoom-in-95 duration-200
-          `}
-          onClick={(e) => e.stopPropagation()}
-        >
-          {/* Header */}
-          {title && (
-            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-              <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
-              <button
-                onClick={onClose}
-                className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-          )}
+      {/* Modal Card */}
+      <div
+        className={`
+          relative bg-white rounded-xl shadow-2xl w-full ${sizes[size]}
+          transform transition-all animate-in fade-in zoom-in-95 duration-200 z-10
+          my-auto
+        `}
+        onClick={(e) => e.stopPropagation()}
+        role="dialog"
+        aria-modal="true"
+      >
+        {/* Header */}
+        {title && (
+          <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+            <h2 className="text-lg font-semibold text-gray-900">{title}</h2>
+            <button
+              onClick={onClose}
+              className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+              aria-label="Fermer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        )}
 
-          {/* Content */}
-          <div className="p-6">{children}</div>
-        </div>
+        {/* Content */}
+        <div className="p-6">{children}</div>
       </div>
-    </Fragment>
+    </div>
   );
+
+  return createPortal(modalNode, document.body);
 }
