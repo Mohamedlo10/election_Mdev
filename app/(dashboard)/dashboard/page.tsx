@@ -198,7 +198,7 @@ export default function DashboardPage() {
     if (loading) return;
 
     if (!authUser) {
-      router.push('/');
+      router.push('/login');
       return;
     }
 
