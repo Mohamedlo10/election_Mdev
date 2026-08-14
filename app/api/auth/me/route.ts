@@ -26,6 +26,10 @@ const ROLE_PRIORITY: Record<string, number> = {
   voter: 5,
 };
 
+/**
+ * GET /api/auth/me
+ * Récupère le profil et l'ensemble des scrutins d'un utilisateur via la fonction RPC PostgreSQL dédiée.
+ */
 export async function GET(request: NextRequest) {
   try {
     const adminClient = createAdminClient();
@@ -59,71 +63,15 @@ export async function GET(request: NextRequest) {
 
     const normalizedEmail = user.email.toLowerCase().trim();
 
-    // 2. Auto-lier TOUTES les entrées votants et rôles correspondantes à cet email (insensible à la casse)
-    try {
-      const { data: matchedVoters } = await adminClient
-        .from('voters')
-        .select('id, auth_uid, email')
-        .or(`auth_uid.eq.${user.id},email.ilike.${normalizedEmail}`);
-
-      if (matchedVoters && matchedVoters.length > 0) {
-        const unlinkedVoterIds = matchedVoters
-          .filter((v) => v.auth_uid !== user.id)
-          .map((v) => v.id);
-
-        if (unlinkedVoterIds.length > 0) {
-          await adminClient
-            .from('voters')
-            .update({
-              auth_uid: user.id,
-              is_registered: true,
-              registered_at: new Date().toISOString(),
-            })
-            .in('id', unlinkedVoterIds);
-        }
-      }
-
-      const { data: matchedRoles } = await adminClient
-        .from('users_roles')
-        .select('id, user_id, email')
-        .or(`user_id.eq.${user.id},email.ilike.${normalizedEmail}`);
-
-      if (matchedRoles && matchedRoles.length > 0) {
-        const unlinkedRoleIds = matchedRoles
-          .filter((r) => r.user_id !== user.id)
-          .map((r) => r.id);
-
-        if (unlinkedRoleIds.length > 0) {
-          await adminClient
-            .from('users_roles')
-            .update({ user_id: user.id })
-            .in('id', unlinkedRoleIds);
-        }
-      }
-    } catch (linkErr) {
-      console.warn('[API /me] Auto-link warning:', linkErr);
-    }
-
-    // 3. Vérifier si c'est un super_admin
-    const { data: allUserRoles } = await adminClient
+    // 2. Vérifier si c'est un super_admin
+    const { data: superAdminRole } = await adminClient
       .from('users_roles')
-      .select(`
-        id,
-        role,
-        instance_id,
-        election_instances (
-          id,
-          name,
-          status,
-          logo_url,
-          primary_color
-        )
-      `)
-      .or(`user_id.eq.${user.id},email.ilike.${normalizedEmail}`);
+      .select('role')
+      .or(`user_id.eq.${user.id},email.ilike.${normalizedEmail}`)
+      .eq('role', 'super_admin')
+      .maybeSingle();
 
-    const isSuperAdmin = allUserRoles?.some((r) => r.role === 'super_admin');
-
-    if (isSuperAdmin) {
+    if (superAdminRole) {
       return NextResponse.json({
         id: user.id,
         email: user.email,
@@ -136,81 +84,44 @@ export async function GET(request: NextRequest) {
       });
     }
 
-    // 4. Construire la liste de toutes les instances administrées
-    const adminInstancesMap = new Map<string, UserInstanceSummary>();
-    (allUserRoles || []).forEach((r) => {
-      if (r.role === 'super_admin' || !r.instance_id) return;
-      const inst = r.election_instances as unknown as {
-        id: string;
-        name: string;
-        status: string;
-        logo_url: string | null;
-        primary_color: string | null;
-      } | null;
+    // 3. Appel de la fonction RPC PostgreSQL unique pour récupérer tous les scrutins et rôles
+    const { data: instancesData, error: rpcError } = await adminClient
+      .rpc('get_user_instances', {
+        p_user_id: user.id,
+        p_email: normalizedEmail,
+      });
 
-      if (inst && !adminInstancesMap.has(r.instance_id)) {
-        adminInstancesMap.set(r.instance_id, {
-          context: 'admin_instance',
-          instance_id: r.instance_id,
-          instance_name: inst.name || 'Élection',
-          instance_status: (inst.status || 'active') as UserInstanceSummary['instance_status'],
-          logo_url: inst.logo_url || null,
-          primary_color: inst.primary_color || '#22c55e',
-          role: r.role as UserRole,
-          voter_id: null,
-          is_registered: null,
-        });
-      }
-    });
+    if (rpcError) {
+      console.error('[API /me] RPC get_user_instances error:', rpcError);
+    }
 
-    // 5. Récupérer TOUS les scrutins de vote où l'utilisateur est électeur (Scrutin A, Scrutin B, etc.)
-    const { data: allVoterRows } = await adminClient
-      .from('voters')
-      .select(`
-        id,
-        instance_id,
-        is_registered,
-        election_instances (
-          id,
-          name,
-          status,
-          logo_url,
-          primary_color
-        )
-      `)
-      .or(`auth_uid.eq.${user.id},email.ilike.${normalizedEmail}`);
+    const allInstances: UserInstanceSummary[] = (instancesData || []).map((row: {
+      context: string;
+      instance_id: string;
+      instance_name: string;
+      instance_status: string;
+      logo_url: string | null;
+      primary_color: string | null;
+      user_role: string;
+      voter_id: string | null;
+      is_registered: boolean | null;
+    }) => ({
+      context: row.context as 'admin_instance' | 'voter_instance',
+      instance_id: row.instance_id,
+      instance_name: row.instance_name || 'Élection',
+      instance_status: (row.instance_status || 'active') as UserInstanceSummary['instance_status'],
+      logo_url: row.logo_url || null,
+      primary_color: row.primary_color || '#22c55e',
+      role: row.user_role as UserRole,
+      voter_id: row.voter_id || null,
+      is_registered: row.is_registered ?? true,
+    }));
 
-    const voterInstancesMap = new Map<string, UserInstanceSummary>();
-    (allVoterRows || []).forEach((v) => {
-      if (!v.instance_id) return;
-      const inst = v.election_instances as unknown as {
-        id: string;
-        name: string;
-        status: string;
-        logo_url: string | null;
-        primary_color: string | null;
-      } | null;
-
-      if (inst && !voterInstancesMap.has(v.instance_id)) {
-        voterInstancesMap.set(v.instance_id, {
-          context: 'voter_instance',
-          instance_id: v.instance_id,
-          instance_name: inst.name || 'Élection',
-          instance_status: (inst.status || 'active') as UserInstanceSummary['instance_status'],
-          logo_url: inst.logo_url || null,
-          primary_color: inst.primary_color || '#22c55e',
-          role: 'voter',
-          voter_id: v.id,
-          is_registered: v.is_registered ?? true,
-        });
-      }
-    });
-
-    const adminInstances = Array.from(adminInstancesMap.values());
-    const voterInstances = Array.from(voterInstancesMap.values());
+    const adminInstances = allInstances.filter((i) => i.context === 'admin_instance');
+    const voterInstances = allInstances.filter((i) => i.context === 'voter_instance');
     const hasMultipleContexts = adminInstances.length > 0 && voterInstances.length > 0;
 
-    // 6. Déterminer le rôle primaire
+    // 4. Déterminer le rôle primaire
     let primaryRole: UserRole = 'admin';
     let primaryInstanceId: string | null = null;
 
@@ -225,7 +136,7 @@ export async function GET(request: NextRequest) {
       primaryInstanceId = voterInstances.length === 1 ? voterInstances[0].instance_id : null;
     }
 
-    // 7. Données du votant actif si applicable
+    // 5. Récupérer les données de vote si un seul scrutin votant
     let voterData: Voter | null = null;
     if (primaryRole === 'voter' && voterInstances.length === 1) {
       const { data } = await adminClient
@@ -237,7 +148,7 @@ export async function GET(request: NextRequest) {
       voterData = data as Voter | null;
     }
 
-    // 8. Si aucune instance rattachée (nouveau compte sans élection)
+    // 6. Nouveau compte sans scrutin assigné
     if (adminInstances.length === 0 && voterInstances.length === 0) {
       return NextResponse.json({
         id: user.id,
