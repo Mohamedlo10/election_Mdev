@@ -12,7 +12,8 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
+import SignOutConfirmDialog from '@/components/ui/SignOutConfirmDialog';
 
 export interface NavItem {
   label: string;
@@ -137,10 +138,10 @@ interface SidebarUserSectionProps {
 export function SidebarUserSection({ collapsed, mobileOpen }: SidebarUserSectionProps) {
   const { authUser, signOut } = useAuth();
   const showFull = !collapsed || mobileOpen;
+  const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
-  const handleSignOut = async () => {
-    await signOut();
-    window.location.href = '/login';
+  const handleSignOut = () => {
+    setIsSignOutOpen(true);
   };
 
   return (
@@ -173,6 +174,7 @@ export function SidebarUserSection({ collapsed, mobileOpen }: SidebarUserSection
         <LogOut className="w-5 h-5 flex-shrink-0" />
         {showFull && <span className="font-medium">Deconnexion</span>}
       </button>
+      <SignOutConfirmDialog isOpen={isSignOutOpen} onClose={() => setIsSignOutOpen(false)} />
     </div>
   );
 }

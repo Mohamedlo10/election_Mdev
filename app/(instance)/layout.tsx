@@ -1,6 +1,6 @@
 'use client';
 
-import { ReactNode, useEffect } from 'react';
+import { ReactNode, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { ArrowLeft, LogOut } from 'lucide-react';
@@ -8,12 +8,14 @@ import { AuthProvider, useAuth } from '@/hooks/useAuth';
 import { InstanceProvider, useInstance } from '@/contexts/InstanceContext';
 import { InstanceSidebar } from '@/components/sidebar/InstanceSidebar';
 import LoadingScreen from '@/components/ui/LoadingScreen';
+import SignOutConfirmDialog from '@/components/ui/SignOutConfirmDialog';
 
 function InstanceLayoutContent({ children }: { children: ReactNode }) {
   const params = useParams();
   const router = useRouter();
   const { authUser, loading: authLoading, signOut } = useAuth();
   const { loading: instanceLoading, error: instanceError, currentInstance } = useInstance();
+  const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
   const instanceId = params.instanceId as string;
 
@@ -88,10 +90,7 @@ function InstanceLayoutContent({ children }: { children: ReactNode }) {
               </span>
             )}
             <button
-              onClick={async () => {
-                await signOut();
-                window.location.href = '/login';
-              }}
+              onClick={() => setIsSignOutOpen(true)}
               className="flex items-center gap-1.5 text-xs text-red-600 hover:bg-red-50 px-3 py-1.5 rounded-lg border border-red-200 transition-colors"
             >
               <LogOut className="w-3.5 h-3.5" />
@@ -105,6 +104,7 @@ function InstanceLayoutContent({ children }: { children: ReactNode }) {
       <main className={`transition-all duration-300 p-4 sm:p-6 ${isVoterOnThisInstance ? '' : 'lg:ml-64 pt-16 lg:pt-6'}`}>
         {children}
       </main>
+      <SignOutConfirmDialog isOpen={isSignOutOpen} onClose={() => setIsSignOutOpen(false)} />
     </div>
   );
 }

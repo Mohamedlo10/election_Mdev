@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import Link from 'next/link';
 import type { UserInstanceSummary } from '@/types';
+import SignOutConfirmDialog from '@/components/ui/SignOutConfirmDialog';
 
 // ─── Indicateur de force du mot de passe ─────────────────────────────────────
 
@@ -313,6 +314,7 @@ function PasswordSection({ userEmail }: { userEmail: string }) {
 
 export default function ProfilePage() {
   const { authUser, adminInstances, voterInstances, signOut } = useAuth();
+  const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
   if (!authUser) return null;
 
@@ -357,10 +359,7 @@ export default function ProfilePage() {
         <Button
           variant="outline"
           size="sm"
-          onClick={async () => {
-            await signOut();
-            window.location.href = '/login';
-          }}
+          onClick={() => setIsSignOutOpen(true)}
           className="flex items-center gap-1.5 text-xs text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
         >
           <LogOut className="w-4 h-4" />
@@ -423,6 +422,7 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       )}
+      <SignOutConfirmDialog isOpen={isSignOutOpen} onClose={() => setIsSignOutOpen(false)} />
     </div>
   );
 }

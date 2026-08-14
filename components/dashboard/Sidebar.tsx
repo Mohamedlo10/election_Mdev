@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/hooks/useAuth';
 import { useState, useEffect } from 'react';
+import SignOutConfirmDialog from '@/components/ui/SignOutConfirmDialog';
 
 interface NavItem {
   label: string;
@@ -91,9 +92,10 @@ export default function Sidebar() {
     (item) => authUser && item.roles.includes(authUser.role)
   );
 
-  const handleSignOut = async () => {
-    await signOut();
-    window.location.href = '/login';
+  const [isSignOutOpen, setIsSignOutOpen] = useState(false);
+
+  const handleSignOut = () => {
+    setIsSignOutOpen(true);
   };
 
   // Fermer le menu mobile lors du changement de route
@@ -225,6 +227,7 @@ export default function Sidebar() {
           </div>
         </div>
       </aside>
+      <SignOutConfirmDialog isOpen={isSignOutOpen} onClose={() => setIsSignOutOpen(false)} />
     </>
   );
 }

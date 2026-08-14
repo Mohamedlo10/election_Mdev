@@ -32,6 +32,7 @@ import {
   getInstanceResults,
 } from '@/lib/services/vote.service';
 import { createClient } from '@/lib/supabase/client';
+import SignOutConfirmDialog from '@/components/ui/SignOutConfirmDialog';
 import type { Candidate, CategoryResults, CreateVote } from '@/types';
 
 interface CategoryWithStatus {
@@ -70,6 +71,7 @@ export default function InstanceVotePage() {
   const [error, setError] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [isSignOutOpen, setIsSignOutOpen] = useState(false);
   const [submittedCount, setSubmittedCount] = useState(0);
   const [results, setResults] = useState<CategoryResults[]>([]);
 
@@ -259,7 +261,7 @@ export default function InstanceVotePage() {
               <p className="text-sm text-gray-500 truncate">{authUser?.email}</p>
             </div>
           </div>
-          <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => signOut()}>
+          <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setIsSignOutOpen(true)}>
             <LogOut className="w-4 h-4 mr-2" />
             Déconnexion
           </Button>
@@ -922,6 +924,8 @@ export default function InstanceVotePage() {
           </Button>
         </div>
       </Modal>
+
+      <SignOutConfirmDialog isOpen={isSignOutOpen} onClose={() => setIsSignOutOpen(false)} />
     </div>
   );
 }

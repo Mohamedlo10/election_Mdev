@@ -1,11 +1,12 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import Button from '@/components/ui/Button';
 import LoadingScreen from '@/components/ui/LoadingScreen';
+import SignOutConfirmDialog from '@/components/ui/SignOutConfirmDialog';
 import type { UserInstanceSummary } from '@/types';
 import {
   Shield, Vote, Settings, Users, BarChart3,
@@ -194,6 +195,7 @@ function VoterInstanceCard({ instance }: { instance: UserInstanceSummary }) {
 export default function DashboardPage() {
   const router = useRouter();
   const { authUser, user, loading, adminInstances, voterInstances, hasMultipleContexts, signOut, refreshUser } = useAuth();
+  const [isSignOutOpen, setIsSignOutOpen] = useState(false);
 
   useEffect(() => {
     if (loading) return;
@@ -235,16 +237,14 @@ export default function DashboardPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={async () => {
-                await signOut();
-                window.location.href = '/login';
-              }}
+              onClick={() => setIsSignOutOpen(true)}
               className="w-full text-xs text-gray-600"
             >
               Se déconnecter
             </Button>
           </div>
         </div>
+        <SignOutConfirmDialog isOpen={isSignOutOpen} onClose={() => setIsSignOutOpen(false)} />
       </div>
     );
   }
@@ -278,10 +278,7 @@ export default function DashboardPage() {
             <Button
               variant="outline"
               size="sm"
-              onClick={async () => {
-                await signOut();
-                window.location.href = '/login';
-              }}
+              onClick={() => setIsSignOutOpen(true)}
               className="flex items-center gap-1.5 text-xs text-red-600 border-red-200 hover:bg-red-50 hover:text-red-700"
             >
               <LogOut className="w-4 h-4" />
@@ -362,6 +359,7 @@ export default function DashboardPage() {
           </div>
         )}
       </main>
+      <SignOutConfirmDialog isOpen={isSignOutOpen} onClose={() => setIsSignOutOpen(false)} />
     </div>
   );
 }
