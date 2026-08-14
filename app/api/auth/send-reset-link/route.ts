@@ -119,15 +119,8 @@ export async function POST(request: Request) {
     // -----------------------------------------------
     // 3. Générer et envoyer le lien de réinitialisation via Nodemailer
     // -----------------------------------------------
-    const reqOrigin = request.headers.get('origin') || request.headers.get('referer')?.replace(/\/$/, '');
-    const reqHost = request.headers.get('x-forwarded-host') || request.headers.get('host');
-    const reqProto = request.headers.get('x-forwarded-proto') || 'https';
-    
-    let derivedAppUrl = process.env.NEXT_PUBLIC_APP_URL || reqOrigin;
-    if (!derivedAppUrl && reqHost) {
-      derivedAppUrl = `${reqProto}://${reqHost}`;
-    }
-    const appUrl = (derivedAppUrl || 'https://election.mouhadev.com').replace(/\/$/, '');
+    const hardcodedUrl = 'https://election.mouhadev.com';
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || hardcodedUrl).replace(/\/$/, '');
     const redirectTo = `${appUrl}/reset-password`;
 
     let resetLink: string | null = null;
@@ -139,10 +132,15 @@ export async function POST(request: Request) {
       options: { redirectTo },
     });
 
-    if (linkData?.properties?.action_link) {
-      resetLink = linkData.properties.action_link;
-      // Toujours remplacer localhost par l'URL réelle de l'application (quelle que soit la config Supabase)
-      resetLink = resetLink.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/g, appUrl);
+    if (linkData?.properties?.hashed_token) {
+      // Lien direct vers notre application : pointe directement sur https://election.mouhadev.com/auth/confirm
+      resetLink = `${appUrl}/auth/confirm?token_hash=${linkData.properties.hashed_token}&type=recovery&next=/reset-password`;
+    } else if (linkData?.properties?.action_link) {
+      let actionLink = linkData.properties.action_link;
+      actionLink = actionLink
+        .replace(/https?%3A%2F%2F(localhost|127\.0\.0\.1)(%3A\d+)?/gi, encodeURIComponent(appUrl))
+        .replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/gi, appUrl);
+      resetLink = actionLink;
     }
 
     if (!resetLink) {

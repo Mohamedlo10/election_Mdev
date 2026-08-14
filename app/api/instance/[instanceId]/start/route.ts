@@ -194,17 +194,23 @@ export async function POST(
           options: { redirectTo },
         });
 
-        if (linkError || !linkData?.properties?.action_link) {
+        if (linkError || !linkData?.properties) {
           console.error(`[start] Generate link error for ${voter.email}:`, linkError);
           errors.push(`${voter.email}: Erreur génération du lien`);
           continue;
         }
 
-        // Remplacer localhost par l'URL réelle
-        const resetLink = linkData.properties.action_link.replace(
-          /https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/g,
-          appUrl
-        );
+        // Lien direct vers notre application (évite toute redirection Supabase vers localhost)
+        let resetLink: string;
+        if (linkData.properties.hashed_token) {
+          resetLink = `${appUrl}/auth/confirm?token_hash=${linkData.properties.hashed_token}&type=recovery&next=/reset-password`;
+        } else {
+          let actionLink = linkData.properties.action_link || '';
+          actionLink = actionLink
+            .replace(/https?%3A%2F%2F(localhost|127\.0\.0\.1)(%3A\d+)?/gi, encodeURIComponent(appUrl))
+            .replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/gi, appUrl);
+          resetLink = actionLink;
+        }
 
         // Envoyer l'email
         const emailResult = await sendPasswordResetLinkEmail(voter.email, resetLink);

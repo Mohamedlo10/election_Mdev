@@ -34,16 +34,9 @@ export async function POST(request: Request) {
     const normalizedEmail = email.toLowerCase().trim();
     const adminClient = createAdminClient();
 
-    // Détecter l'URL publique de l'application
-    const reqOrigin = request.headers.get('origin') || request.headers.get('referer')?.replace(/\/$/, '');
-    const reqHost = request.headers.get('x-forwarded-host') || request.headers.get('host');
-    const reqProto = request.headers.get('x-forwarded-proto') || 'https';
-    
-    let derivedAppUrl = process.env.NEXT_PUBLIC_APP_URL || reqOrigin;
-    if (!derivedAppUrl && reqHost) {
-      derivedAppUrl = `${reqProto}://${reqHost}`;
-    }
-    const appUrl = (derivedAppUrl || 'https://election.mouhadev.com').replace(/\/$/, '');
+    // Déterminer l'URL publique de l'application
+    const hardcodedUrl = 'https://election.mouhadev.com';
+    const appUrl = (process.env.NEXT_PUBLIC_APP_URL || hardcodedUrl).replace(/\/$/, '');
 
     // 1. Vérifier si l'utilisateur existe déjà dans Supabase Auth
     const { data: usersList } = await adminClient.auth.admin.listUsers({ perPage: 1000 });
@@ -65,14 +58,22 @@ export async function POST(request: Request) {
       },
     });
 
-    if (linkError || !linkData?.properties?.action_link) {
+    if (linkError || !linkData?.properties) {
       console.error('[API Register] Generate link error:', linkError);
       return NextResponse.json({ error: linkError?.message || 'Erreur lors de la création du lien de confirmation' }, { status: 500 });
     }
 
-    let confirmationLink = linkData.properties.action_link;
-    // Toujours remplacer localhost par l'URL réelle de l'application (quelle que soit la config Supabase)
-    confirmationLink = confirmationLink.replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/g, appUrl);
+    let confirmationLink: string;
+    if (linkData.properties.hashed_token) {
+      // Lien direct vers notre application : pointe directement sur https://election.mouhadev.com/auth/confirm
+      confirmationLink = `${appUrl}/auth/confirm?token_hash=${linkData.properties.hashed_token}&type=signup&next=/dashboard`;
+    } else {
+      let actionLink = linkData.properties.action_link || '';
+      actionLink = actionLink
+        .replace(/https?%3A%2F%2F(localhost|127\.0\.0\.1)(%3A\d+)?/gi, encodeURIComponent(appUrl))
+        .replace(/https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/gi, appUrl);
+      confirmationLink = actionLink;
+    }
 
     // 3. Transmettre le lien dans un email SMTP personnalisé
     const emailResult = await sendEmailConfirmationLink(normalizedEmail, confirmationLink);

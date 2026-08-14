@@ -171,7 +171,7 @@ export function getAccountInviteTemplate(
         ` : ''}
 
         <div style="text-align: center; margin-top: 30px;">
-          <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}"
+          <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://election.mouhadev.com'}"
              style="display: inline-block; background: #22c55e; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">
             Se connecter
           </a>
@@ -316,7 +316,7 @@ export function getPasswordResetTemplate(
         </div>
 
         <div style="text-align: center; margin-top: 30px;">
-          <a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}"
+          <a href="${process.env.NEXT_PUBLIC_APP_URL || 'https://election.mouhadev.com'}"
              style="display: inline-block; background: #22c55e; color: white; padding: 12px 30px; border-radius: 8px; text-decoration: none; font-weight: bold;">
             Se connecter
           </a>
@@ -409,7 +409,7 @@ export async function sendPasswordResetLinkEmail(
 export async function sendRegistrationWelcomeEmail(
   to: string
 ): Promise<{ success: boolean; error?: string }> {
-  const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/login`;
+  const loginUrl = `${process.env.NEXT_PUBLIC_APP_URL || 'https://election.mouhadev.com'}/login`;
   const html = `
     <!DOCTYPE html>
     <html>
