@@ -122,14 +122,45 @@ export async function GET(request: NextRequest) {
         }));
       } else {
         console.warn('[API /me] RPC fallback needed, error:', rpcError);
-        // Fallback direct tables
-        const { data: voterFallback } = await adminClient
-          .from('voters')
-          .select('id, instance_id, is_registered, election_instances(id, name, status, logo_url, primary_color)')
-          .or(`auth_uid.eq.${user.id},email.ilike.${normalizedEmail}`);
+        // Fallback direct tables (users_roles + voters)
+        const [rolesRes, votersRes] = await Promise.all([
+          adminClient
+            .from('users_roles')
+            .select('role, instance_id, election_instances(id, name, status, logo_url, primary_color)')
+            .or(`user_id.eq.${user.id},email.ilike.${normalizedEmail}`)
+            .in('role', ['admin', 'manager', 'observer']),
+          adminClient
+            .from('voters')
+            .select('id, instance_id, is_registered, election_instances(id, name, status, logo_url, primary_color)')
+            .or(`auth_uid.eq.${user.id},email.ilike.${normalizedEmail}`)
+        ]);
 
-        if (voterFallback) {
-          voterFallback.forEach((v) => {
+        if (rolesRes.data) {
+          rolesRes.data.forEach((ur) => {
+            if (!ur.instance_id) return;
+            const inst = ur.election_instances as unknown as {
+              id: string;
+              name: string;
+              status: string;
+              logo_url: string | null;
+              primary_color: string | null;
+            } | null;
+            allInstances.push({
+              context: 'admin_instance',
+              instance_id: ur.instance_id,
+              instance_name: inst?.name || 'Élection',
+              instance_status: (inst?.status || 'active') as UserInstanceSummary['instance_status'],
+              logo_url: inst?.logo_url || null,
+              primary_color: inst?.primary_color || '#22c55e',
+              role: (ur.role as UserRole) || 'admin',
+              voter_id: null,
+              is_registered: null,
+            });
+          });
+        }
+
+        if (votersRes.data) {
+          votersRes.data.forEach((v) => {
             if (!v.instance_id) return;
             const inst = v.election_instances as unknown as {
               id: string;
