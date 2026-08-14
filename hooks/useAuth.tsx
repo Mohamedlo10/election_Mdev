@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import { createContext, useContext, useEffect, useState, useCallback, useRef, ReactNode } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import type { User, Session } from '@supabase/supabase-js';
 import type { AuthUser, UserRole, Voter, UserInstanceSummary } from '@/types';
@@ -62,10 +62,7 @@ function saveToStorage(authUser: AuthUser) {
 function clearStorage() {
   if (typeof window === 'undefined') return;
   try {
-    // Supprimer le cache utilisateur
     localStorage.removeItem(STORAGE_KEY);
-
-    // Nettoyer les elements Supabase
     const keysToRemove: string[] = [];
     for (let i = 0; i < localStorage.length; i++) {
       const key = localStorage.key(i);
@@ -89,11 +86,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [voterInstances, setVoterInstances] = useState<UserInstanceSummary[]>([]);
   const [hasMultipleContexts, setHasMultipleContexts] = useState(false);
 
-  const supabase = createClient();
+  // ✅ Instance Supabase stable via useRef — ne recrée jamais une nouvelle référence
+  const supabaseRef = useRef(createClient());
+  const supabase = supabaseRef.current;
 
+  // ✅ fetchUserRole sans dépendances instables
   const fetchUserRole = useCallback(async (): Promise<AuthUser | null> => {
     try {
-      const { data: { session: currentSession } } = await supabase.auth.getSession();
+      const { data: { session: currentSession } } = await supabaseRef.current.auth.getSession();
       const headers: Record<string, string> = {};
       if (currentSession?.access_token) {
         headers['Authorization'] = `Bearer ${currentSession.access_token}`;
@@ -115,7 +115,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           no_instance_yet: data.no_instance_yet ?? false,
         };
 
-        // Mettre à jour les états dérivés
         setAdminInstances(data.admin_instances ?? []);
         setVoterInstances(data.voter_instances ?? []);
         setHasMultipleContexts(data.has_multiple_contexts ?? false);
@@ -128,12 +127,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       console.error('[Auth] Fetch error:', error);
       return null;
     }
-  }, [supabase]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // ✅ Pas de dépendances — supabaseRef.current est stable
 
   const refreshUser = useCallback(async () => {
-    const { data: { user: currentUser } } = await supabase.auth.getUser();
-
+    const { data: { user: currentUser } } = await supabaseRef.current.auth.getUser();
     if (currentUser) {
+      clearStorage(); // Forcer un nouveau fetch
       const userRole = await fetchUserRole();
       if (userRole) {
         setAuthUser(userRole);
@@ -145,36 +145,34 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         clearStorage();
       }
     }
-  }, [supabase, fetchUserRole]);
+  }, [fetchUserRole]);
 
+  // ✅ useEffect avec dépendances stables uniquement
   useEffect(() => {
-    // Obtenir la session actuelle
     const getSession = async () => {
       const { data: { session: currentSession } } = await supabase.auth.getSession();
       setSession(currentSession);
       setUser(currentSession?.user ?? null);
 
       if (currentSession?.user) {
-        // Verifier le cache
         const cached = getFromStorage();
         const isCacheValid = cached &&
           cached.authUser.id === currentSession.user.id &&
           Date.now() - cached.timestamp < CACHE_DURATION;
 
         if (isCacheValid) {
-          // Utiliser le cache directement
-          console.log('[Auth] Using cached user data');
           setAuthUser(cached.authUser);
+          setAdminInstances(cached.authUser.admin_instances ?? []);
+          setVoterInstances(cached.authUser.voter_instances ?? []);
+          setHasMultipleContexts(cached.authUser.has_multiple_contexts ?? false);
           setHasNoRole(false);
         } else {
-          // Cache invalide ou expire, fetch depuis l'API
           const userRole = await fetchUserRole();
           if (userRole) {
             setAuthUser(userRole);
             setHasNoRole(false);
             saveToStorage(userRole);
           } else {
-            // Utilisateur connecte mais sans role assigne
             setAuthUser(null);
             setHasNoRole(true);
             clearStorage();
@@ -191,13 +189,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     getSession();
 
-    // Écouter les changements d'auth
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, newSession) => {
         setSession(newSession);
         setUser(newSession?.user ?? null);
 
         if (event === 'SIGNED_IN' && newSession?.user) {
+          clearStorage(); // Invalider le cache pour forcer un fetch frais
           const userRole = await fetchUserRole();
           if (userRole) {
             setAuthUser(userRole);
@@ -208,31 +206,26 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             setHasNoRole(true);
             clearStorage();
           }
+          setLoading(false);
         } else if (event === 'SIGNED_OUT') {
           setAuthUser(null);
           setHasNoRole(false);
           clearStorage();
+          setLoading(false);
         }
-
-        setLoading(false);
+        // Ne pas appeler setLoading(false) sur les autres events (TOKEN_REFRESHED etc.)
       }
     );
 
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase, fetchUserRole]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // ✅ Tableau vide — supabase et fetchUserRole sont stables via useRef/useCallback sans deps
 
   const signIn = async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
-
-    if (error) {
-      return { error: error.message };
-    }
-
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) return { error: error.message };
     return { error: null };
   };
 
@@ -241,20 +234,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${origin}/auth/confirm?next=/dashboard`,
+        redirectTo: `${origin}/auth/callback?next=/dashboard`,
       },
     });
-
-    if (error) {
-      return { error: error.message };
-    }
-
+    if (error) return { error: error.message };
     return { error: null };
   };
 
   const signOut = async () => {
     await supabase.auth.signOut();
     setAuthUser(null);
+    setAdminInstances([]);
+    setVoterInstances([]);
     clearStorage();
   };
 
