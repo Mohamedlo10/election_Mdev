@@ -55,19 +55,25 @@ export async function updateSession(request: NextRequest) {
     user = null;
   }
 
-  // Routes publiques
-  const publicRoutes = ['/', '/login', '/register'];
-  const isPublicRoute = publicRoutes.includes(request.nextUrl.pathname);
+  // Routes publiques ou routes d'authentification (accessibles sans session active)
+  const pathname = request.nextUrl.pathname;
+  const isPublicRoute =
+    pathname === '/' ||
+    pathname === '/login' ||
+    pathname === '/register' ||
+    pathname === '/reset-password' ||
+    pathname.startsWith('/auth/') ||
+    pathname.startsWith('/api/');
 
   // Si pas connecté et route protégée
-  if (!user && !isPublicRoute && !request.nextUrl.pathname.startsWith('/api')) {
+  if (!user && !isPublicRoute) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
   }
 
   // Si connecté et sur page login/register, rediriger vers dashboard
-  if (user && (request.nextUrl.pathname === '/login' || request.nextUrl.pathname === '/register')) {
+  if (user && (pathname === '/login' || pathname === '/register')) {
     const url = request.nextUrl.clone();
     url.pathname = '/dashboard';
     return NextResponse.redirect(url);

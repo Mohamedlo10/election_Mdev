@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, Suspense } from 'react';
-import { useRouter } from 'next/navigation';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { Vote, Mail, ArrowLeft, Loader2, Lock, Clock, CheckCircle, Send, Eye, EyeOff } from 'lucide-react';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from '@/components/ui/Card';
@@ -10,7 +10,8 @@ import Input from '@/components/ui/Input';
 import Alert from '@/components/ui/Alert';
 import GoogleAuthButton from '@/components/ui/GoogleAuthButton';
 import { useAuth } from '@/hooks/useAuth';
-import { useEffect, useRef } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import type { EmailOtpType } from '@supabase/supabase-js';
 
 // Étapes du flux de connexion
 // - 'email'       : saisie de l'email (point d'entrée unique)
@@ -21,6 +22,7 @@ type Step = 'email' | 'password' | 'reset-sent' | 'waiting';
 
 function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { signIn } = useAuth();
 
   const [step, setStep] = useState<Step>('email');
@@ -28,8 +30,51 @@ function LoginForm() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [validatingToken, setValidatingToken] = useState(false);
   const [error, setError] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
   const [instanceName, setInstanceName] = useState('');
+
+  // Vérifier automatiquement token_hash ou messages dans l'URL
+  useEffect(() => {
+    const errorParam = searchParams.get('error');
+    if (errorParam) {
+      setError(errorParam);
+    }
+
+    const confirmed = searchParams.get('confirmed');
+    if (confirmed === 'true') {
+      setSuccessMessage('Votre compte a été confirmé avec succès ! Vous pouvez vous connecter.');
+    }
+
+    // Traitement automatique si token_hash est présent dans les paramètres
+    const token_hash = searchParams.get('token_hash');
+    const type = searchParams.get('type') as EmailOtpType | null;
+    const next = searchParams.get('next') || '/dashboard';
+
+    if (token_hash && type) {
+      setValidatingToken(true);
+      setError('');
+      const supabase = createClient();
+
+      supabase.auth.verifyOtp({ token_hash, type })
+        .then(({ data, error: verifyErr }) => {
+          if (verifyErr) {
+            console.error('Verify OTP error:', verifyErr);
+            setError('Le lien de confirmation est invalide ou a expiré. Veuillez demander un nouveau lien.');
+            setValidatingToken(false);
+          } else {
+            // Connexion réussie, redirection immédiate
+            router.push(next);
+          }
+        })
+        .catch((err) => {
+          console.error('Verify error:', err);
+          setError('Erreur lors de la validation du compte.');
+          setValidatingToken(false);
+        });
+    }
+  }, [searchParams, router]);
 
   // Cooldown 60s sur "Renvoyer le lien"
   const [cooldown, setCooldown] = useState(0);
@@ -191,6 +236,20 @@ function LoginForm() {
 
   const { title, description } = stepConfig[step];
 
+  if (validatingToken) {
+    return (
+      <Card>
+        <CardContent className="flex flex-col items-center justify-center py-12 space-y-4 text-center">
+          <Loader2 className="w-10 h-10 animate-spin text-theme-primary" />
+          <div>
+            <p className="text-base font-semibold text-gray-900">Validation de votre compte...</p>
+            <p className="text-xs text-gray-500 mt-1">Connexion automatique à votre espace en cours.</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <Card>
       <CardHeader className="text-center">
@@ -208,6 +267,12 @@ function LoginForm() {
       </CardHeader>
 
       <CardContent>
+        {successMessage && (
+          <Alert variant="success" className="mb-4">
+            {successMessage}
+          </Alert>
+        )}
+
         {error && (
           <Alert variant="error" className="mb-4">
             {error}
