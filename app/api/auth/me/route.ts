@@ -63,59 +63,98 @@ export async function GET(request: NextRequest) {
 
     const normalizedEmail = user.email.toLowerCase().trim();
 
-    // 2. Vérifier si c'est un super_admin
-    const { data: superAdminRole } = await adminClient
-      .from('users_roles')
-      .select('role')
-      .or(`user_id.eq.${user.id},email.ilike.${normalizedEmail}`)
-      .eq('role', 'super_admin')
-      .maybeSingle();
+    // 2. Vérifier si c'est un super_admin (limit(1) pour éviter les erreurs multiples)
+    try {
+      const { data: superAdminRows } = await adminClient
+        .from('users_roles')
+        .select('role')
+        .or(`user_id.eq.${user.id},email.ilike.${normalizedEmail}`)
+        .eq('role', 'super_admin')
+        .limit(1);
 
-    if (superAdminRole) {
-      return NextResponse.json({
-        id: user.id,
-        email: user.email,
-        role: 'super_admin' as UserRole,
-        instance_id: null,
-        voter: null,
-        admin_instances: [],
-        voter_instances: [],
-        has_multiple_contexts: false,
-      });
+      if (superAdminRows && superAdminRows.length > 0) {
+        return NextResponse.json({
+          id: user.id,
+          email: user.email,
+          role: 'super_admin' as UserRole,
+          instance_id: null,
+          voter: null,
+          admin_instances: [],
+          voter_instances: [],
+          has_multiple_contexts: false,
+        });
+      }
+    } catch (saErr) {
+      console.warn('[API /me] SuperAdmin check warning:', saErr);
     }
 
-    // 3. Appel de la fonction RPC PostgreSQL unique pour récupérer tous les scrutins et rôles
-    const { data: instancesData, error: rpcError } = await adminClient
-      .rpc('get_user_instances', {
-        p_user_id: user.id,
-        p_email: normalizedEmail,
-      });
+    // 3. Appel de la fonction RPC PostgreSQL get_user_instances
+    let allInstances: UserInstanceSummary[] = [];
 
-    if (rpcError) {
-      console.error('[API /me] RPC get_user_instances error:', rpcError);
+    try {
+      const { data: instancesData, error: rpcError } = await adminClient
+        .rpc('get_user_instances', {
+          p_user_id: user.id,
+          p_email: normalizedEmail,
+        });
+
+      if (!rpcError && Array.isArray(instancesData)) {
+        allInstances = instancesData.map((row: {
+          context: string;
+          instance_id: string;
+          instance_name: string;
+          instance_status: string;
+          logo_url: string | null;
+          primary_color: string | null;
+          user_role: string;
+          voter_id: string | null;
+          is_registered: boolean | null;
+        }) => ({
+          context: row.context as 'admin_instance' | 'voter_instance',
+          instance_id: row.instance_id,
+          instance_name: row.instance_name || 'Élection',
+          instance_status: (row.instance_status || 'active') as UserInstanceSummary['instance_status'],
+          logo_url: row.logo_url || null,
+          primary_color: row.primary_color || '#22c55e',
+          role: (row.user_role || 'voter') as UserRole,
+          voter_id: row.voter_id || null,
+          is_registered: row.is_registered ?? true,
+        }));
+      } else {
+        console.warn('[API /me] RPC fallback needed, error:', rpcError);
+        // Fallback direct tables
+        const { data: voterFallback } = await adminClient
+          .from('voters')
+          .select('id, instance_id, is_registered, election_instances(id, name, status, logo_url, primary_color)')
+          .or(`auth_uid.eq.${user.id},email.ilike.${normalizedEmail}`);
+
+        if (voterFallback) {
+          voterFallback.forEach((v) => {
+            if (!v.instance_id) return;
+            const inst = v.election_instances as unknown as {
+              id: string;
+              name: string;
+              status: string;
+              logo_url: string | null;
+              primary_color: string | null;
+            } | null;
+            allInstances.push({
+              context: 'voter_instance',
+              instance_id: v.instance_id,
+              instance_name: inst?.name || 'Élection',
+              instance_status: (inst?.status || 'active') as UserInstanceSummary['instance_status'],
+              logo_url: inst?.logo_url || null,
+              primary_color: inst?.primary_color || '#22c55e',
+              role: 'voter',
+              voter_id: v.id,
+              is_registered: v.is_registered ?? true,
+            });
+          });
+        }
+      }
+    } catch (rpcCatch) {
+      console.warn('[API /me] RPC catch error:', rpcCatch);
     }
-
-    const allInstances: UserInstanceSummary[] = (instancesData || []).map((row: {
-      context: string;
-      instance_id: string;
-      instance_name: string;
-      instance_status: string;
-      logo_url: string | null;
-      primary_color: string | null;
-      user_role: string;
-      voter_id: string | null;
-      is_registered: boolean | null;
-    }) => ({
-      context: row.context as 'admin_instance' | 'voter_instance',
-      instance_id: row.instance_id,
-      instance_name: row.instance_name || 'Élection',
-      instance_status: (row.instance_status || 'active') as UserInstanceSummary['instance_status'],
-      logo_url: row.logo_url || null,
-      primary_color: row.primary_color || '#22c55e',
-      role: row.user_role as UserRole,
-      voter_id: row.voter_id || null,
-      is_registered: row.is_registered ?? true,
-    }));
 
     const adminInstances = allInstances.filter((i) => i.context === 'admin_instance');
     const voterInstances = allInstances.filter((i) => i.context === 'voter_instance');
@@ -136,16 +175,20 @@ export async function GET(request: NextRequest) {
       primaryInstanceId = voterInstances.length === 1 ? voterInstances[0].instance_id : null;
     }
 
-    // 5. Récupérer les données de vote si un seul scrutin votant
+    // 5. Récupérer les données de vote si un seul scrutin votant (avec limit(1))
     let voterData: Voter | null = null;
     if (primaryRole === 'voter' && voterInstances.length === 1) {
-      const { data } = await adminClient
-        .from('voters')
-        .select('*')
-        .or(`auth_uid.eq.${user.id},email.ilike.${normalizedEmail}`)
-        .eq('instance_id', voterInstances[0].instance_id)
-        .maybeSingle();
-      voterData = data as Voter | null;
+      try {
+        const { data: voterRows } = await adminClient
+          .from('voters')
+          .select('*')
+          .or(`auth_uid.eq.${user.id},email.ilike.${normalizedEmail}`)
+          .eq('instance_id', voterInstances[0].instance_id)
+          .limit(1);
+        voterData = (voterRows?.[0] as Voter) || null;
+      } catch (vErr) {
+        console.warn('[API /me] Voter fetch warning:', vErr);
+      }
     }
 
     // 6. Nouveau compte sans scrutin assigné
@@ -174,7 +217,7 @@ export async function GET(request: NextRequest) {
       has_multiple_contexts: hasMultipleContexts,
     });
   } catch (error) {
-    console.error('[API /me] Error:', error);
+    console.error('[API /me] Unhandled Error:', error);
     return NextResponse.json({ error: 'Erreur serveur' }, { status: 500 });
   }
 }

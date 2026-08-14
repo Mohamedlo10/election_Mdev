@@ -192,31 +192,23 @@ function VoterInstanceCard({ instance }: { instance: UserInstanceSummary }) {
 
 export default function DashboardPage() {
   const router = useRouter();
-  const { authUser, loading, adminInstances, voterInstances, hasMultipleContexts, signOut } = useAuth();
+  const { authUser, user, loading, adminInstances, voterInstances, hasMultipleContexts, signOut, refreshUser } = useAuth();
 
   useEffect(() => {
     if (loading) return;
 
-    if (!authUser) {
+    // Si pas d'utilisateur Supabase connecté, rediriger vers login
+    if (!user) {
       router.push('/login');
       return;
     }
 
-    // Cas simples : redirection directe sans afficher le Hub
-    if (authUser.role === 'super_admin') {
+    // Cas simples : redirection directe super_admin
+    if (authUser?.role === 'super_admin') {
       router.push('/super-admin');
       return;
     }
-
-    // Ne plus forcer de redirection automatique pour mono-instance
-    // L'utilisateur reste toujours sur Mon Espace (/dashboard)
-
-    // Si 0 instance ou multi-instances → rester sur Mon Espace (/dashboard)
-
-
-    // Si aucun des cas ci-dessus → rester sur le Hub (multi-contextes ou zéro instance)
-
-  }, [authUser, loading, adminInstances, voterInstances, router]);
+  }, [authUser, user, loading, router]);
 
   // ─── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
@@ -225,6 +217,39 @@ export default function DashboardPage() {
         <div className="text-center">
           <Loader2 className="w-10 h-10 animate-spin text-green-500 mx-auto" />
           <p className="mt-3 text-gray-500 text-sm">Chargement de votre espace...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Si l'utilisateur est connecté mais les données n'ont pas pu être chargées
+  if (user && !authUser) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="text-center max-w-sm bg-white p-8 rounded-2xl border border-gray-100 shadow-sm">
+          <div className="w-12 h-12 bg-amber-50 rounded-full flex items-center justify-center mx-auto mb-4">
+            <Clock className="w-6 h-6 text-amber-600" />
+          </div>
+          <h2 className="text-base font-semibold text-gray-900 mb-2">Chargement de votre session</h2>
+          <p className="text-xs text-gray-500 mb-6">
+            Votre connexion est établie. Cliquez ci-dessous pour actualiser vos scrutins.
+          </p>
+          <div className="flex flex-col gap-2">
+            <Button size="sm" onClick={() => refreshUser?.()} className="w-full">
+              Actualiser mon espace
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={async () => {
+                await signOut();
+                window.location.href = '/login';
+              }}
+              className="w-full text-xs text-gray-600"
+            >
+              Se déconnecter
+            </Button>
+          </div>
         </div>
       </div>
     );
